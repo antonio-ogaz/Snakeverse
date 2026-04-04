@@ -4,6 +4,7 @@ from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PySide6.QtCore import QUrl, Qt
 from pantalla.puntuaciones import PuntuacionesWindow
 from pantalla.configuracion import ConfiguracionWindow
+from pantalla.ajustes import AjustesWindow
 
 class InicioWindow(QWidget):
     def __init__(self, parent=None):
@@ -58,7 +59,7 @@ class InicioWindow(QWidget):
         self.player = QMediaPlayer()
         self.audio_output = QAudioOutput()
         self.player.setAudioOutput(self.audio_output)
-        self.player.setSource(QUrl.fromLocalFile("recursos/musica.mp3"))
+        self.player.setSource(QUrl.fromLocalFile("recursos/Sonido.mp3"))
         self.player.play()
 
         layout_principal.addLayout(izquierda, stretch=2)
@@ -70,10 +71,7 @@ class InicioWindow(QWidget):
         self.parent.setCentralWidget(ConfiguracionWindow(self.parent))
 
     def abrir_puntuaciones(self):
-        self.parent.setCentralWidget(PuntuacionesWindow())
+        self.parent.setCentralWidget(PuntuacionesWindow(self.parent))
 
     def mostrar_ajustes(self):
-        ajustes = QLabel("Pantalla de AJUSTES")
-        ajustes.setStyleSheet("font-size: 18px; color: gray;")
-        self.parent.setCentralWidget(ajustes)
-
+        self.parent.setCentralWidget(AjustesWindow(self.parent))

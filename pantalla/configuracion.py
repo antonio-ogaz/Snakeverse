@@ -40,6 +40,17 @@ class ConfiguracionWindow(QWidget):
 
         layout.addSpacerItem(QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding))
 
+        btn_volver = QPushButton("VOLVER AL MENÚ")
+        btn_volver.setStyleSheet("""
+            background-color: gray;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            padding: 10px;
+        """)
+        btn_volver.clicked.connect(self.volver)
+        layout.addWidget(btn_volver)
+
         btn_iniciar = QPushButton("INICIAR JUEGO")
         btn_iniciar.setStyleSheet("""
             background-color: red;
@@ -53,5 +64,9 @@ class ConfiguracionWindow(QWidget):
 
         self.setLayout(layout)
 
+    def volver(self):
+        from pantalla.inicio import InicioWindow
+        self.parent.setCentralWidget(InicioWindow(self.parent))
+
     def iniciar_juego(self):
-        self.parent.setCentralWidget(JuegoWindow())
+        self.parent.setCentralWidget(JuegoWindow(self.parent))

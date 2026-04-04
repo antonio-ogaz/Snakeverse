@@ -1,10 +1,12 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QFrame, QPushButton
 from PySide6.QtGui import QFont
 from PySide6.QtCore import Qt
 
 class JuegoWindow(QWidget):
-    def __init__(self):
+    def __init__(self, parent=None):
         super().__init__()
+        self.parent = parent
+
         layout = QVBoxLayout()
 
         titulo = QLabel("SNAKEVERSE")
@@ -36,4 +38,13 @@ class JuegoWindow(QWidget):
         mapa.setAlignment(Qt.AlignCenter)
         layout.addWidget(mapa)
 
+        btn_volver = QPushButton("VOLVER AL MENÚ")
+        btn_volver.setStyleSheet("font-size: 16px; padding: 8px;")
+        btn_volver.clicked.connect(self.volver)
+        layout.addWidget(btn_volver)
+
         self.setLayout(layout)
+
+    def volver(self):
+        from pantalla.inicio import InicioWindow
+        self.parent.setCentralWidget(InicioWindow(self.parent))
