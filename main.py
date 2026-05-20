@@ -5,7 +5,7 @@ from pantalla.inicio import InicioWindow
 class Snakeverse(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Snakeverse")
+        self.setWindowTitle("")
         self.setGeometry(100, 100, 800, 600)
         self.setCentralWidget(InicioWindow(self))
 
