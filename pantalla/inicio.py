@@ -1,77 +1,98 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QSpacerItem, QSizePolicy
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel)
 from PySide6.QtGui import QPixmap, QFont
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PySide6.QtCore import QUrl, Qt
 from pantalla.puntuaciones import PuntuacionesWindow
 from pantalla.configuracion import ConfiguracionWindow
-from pantalla.ajustes import AjustesWindow
 
 class InicioWindow(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.parent = parent
 
+        self.setStyleSheet(""" background-color: black; """)
 
         layout_principal = QHBoxLayout()
+        layout_principal.setSpacing(50)
 
-        izquierda = QVBoxLayout()
-        titulo = QLabel("SNAKEVERSE")
-        titulo.setFont(QFont("Arial", 32, QFont.Bold))
-        titulo.setStyleSheet("color: blue; margin-bottom: 20px;")
-        izquierda.addWidget(titulo)
+        layout_logo = QVBoxLayout()
+        layout_menu = QVBoxLayout()
+
+        layout_logo.setAlignment(Qt.AlignCenter)
+        layout_menu.setAlignment(Qt.AlignCenter)
+        layout_menu.setSpacing(20)
 
         logo = QLabel()
         pixmap = QPixmap("recursos/logo.png")
-        logo.setPixmap(pixmap)
-        logo.setScaledContents(True)
-        logo.setFixedSize(500, 500)
-        izquierda.addWidget(logo)
 
-        izquierda.addSpacerItem(QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding))
+        logo.setPixmap(
+            pixmap.scaled(400, 400, Qt.KeepAspectRatio, Qt.SmoothTransformation))
 
-
-        derecha = QVBoxLayout()
+        logo.setAlignment(Qt.AlignCenter)
 
         btn_jugar = QPushButton("[JUGAR]")
         btn_ajustes = QPushButton("[AJUSTES]")
         btn_puntuaciones = QPushButton("[PUNTUACIONES]")
         btn_salir = QPushButton("[SALIR]")
 
+        botones = [
+            (btn_jugar, "green"),
+            (btn_ajustes, "gray"),
+            (btn_puntuaciones, "blue"),
+            (btn_salir, "red")
+        ]
 
-        btn_jugar.setStyleSheet("color: green; font-size: 22px; font-weight: bold; padding: 10px;")
-        btn_ajustes.setStyleSheet("color: gray; font-size: 22px; font-weight: bold; padding: 10px;")
-        btn_puntuaciones.setStyleSheet("color: blue; font-size: 22px; font-weight: bold; padding: 10px;")
-        btn_salir.setStyleSheet("color: red; font-size: 22px; font-weight: bold; padding: 10px;")
+        for boton, color in botones:
 
-        derecha.addWidget(btn_jugar)
-        derecha.addWidget(btn_ajustes)
-        derecha.addWidget(btn_puntuaciones)
-        derecha.addWidget(btn_salir)
+            boton.setFixedWidth(300)
 
-        derecha.addSpacerItem(QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding))
+            boton.setStyleSheet(f"""
+                QPushButton {{
+                    color: {color};
+                    font-size: 22px;
+                    font-weight: bold;
+                    padding: 12px;
+                    background-color: #1f1f35;
+                    border: 2px solid {color};
+                    border-radius: 10px;
+                }}
+
+                QPushButton:hover {{
+                    background-color: #2a2a4d;
+                }}
+            """)
+
+        layout_logo.addWidget(logo)
+
+        layout_menu.addWidget(btn_jugar)
+        layout_menu.addWidget(btn_ajustes)
+        layout_menu.addWidget(btn_puntuaciones)
+        layout_menu.addWidget(btn_salir)
+
+        layout_principal.addLayout(layout_logo)
+        layout_principal.addLayout(layout_menu)
 
         btn_jugar.clicked.connect(self.abrir_configuracion)
         btn_puntuaciones.clicked.connect(self.abrir_puntuaciones)
         btn_salir.clicked.connect(self.parent.close)
         btn_ajustes.clicked.connect(self.mostrar_ajustes)
 
-
         self.player = QMediaPlayer()
         self.audio_output = QAudioOutput()
         self.player.setAudioOutput(self.audio_output)
-        self.player.setSource(QUrl.fromLocalFile("recursos/Sonido.mp3"))
+        self.player.setSource(
+            QUrl.fromLocalFile("recursos/sonido.mp3"))
         self.player.play()
-
-        layout_principal.addLayout(izquierda, stretch=2)
-        layout_principal.addLayout(derecha, stretch=1)
-
         self.setLayout(layout_principal)
 
     def abrir_configuracion(self):
         self.parent.setCentralWidget(ConfiguracionWindow(self.parent))
 
     def abrir_puntuaciones(self):
-        self.parent.setCentralWidget(PuntuacionesWindow(self.parent))
+        self.parent.setCentralWidget(PuntuacionesWindow())
 
     def mostrar_ajustes(self):
-        self.parent.setCentralWidget(AjustesWindow(self.parent))
+        ajustes = QLabel("Pantalla de AJUSTES")
+        ajustes.setStyleSheet("""font-size: 18px; color: gray; """)
+        ajustes.setAlignment(Qt.AlignCenter)
+        self.parent.setCentralWidget(ajustes)
