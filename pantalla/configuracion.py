@@ -1,66 +1,90 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QLineEdit, QPushButton, QSpacerItem, QSizePolicy
-from PySide6.QtGui import QFont
-from pantalla.juego import JuegoWindow
+from PySide6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
+                               QLineEdit, QPushButton, QSpacerItem, QSizePolicy)
+from PySide6.QtCore import Qt
 
 class ConfiguracionWindow(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.parent = parent
+        self.setStyleSheet("background-color: black;")
 
         layout = QVBoxLayout()
+        layout.setSpacing(14)
+        layout.setContentsMargins(60, 40, 60, 40)
 
+        # ── Título ──
         titulo = QLabel("CONFIGURAR PARTIDA")
-        titulo.setFont(QFont("Arial", 26, QFont.Bold))
-        titulo.setStyleSheet("color: darkblue; margin-bottom: 20px;")
+        titulo.setAlignment(Qt.AlignCenter)
+        titulo.setStyleSheet("color: blue; font-size: 26px; font-weight: bold; padding: 10px;")
         layout.addWidget(titulo)
 
+        # ── Campos de texto ──
         lbl_j1 = QLabel("Nombre Jugador 1:")
-        lbl_j1.setStyleSheet("font-size: 18px;")
         self.jugador1 = QLineEdit()
-        self.jugador1.setPlaceholderText("Jugador 1")
-        self.jugador1.setStyleSheet("padding: 8px; font-size: 16px;")
-        layout.addWidget(lbl_j1)
-        layout.addWidget(self.jugador1)
+        self.jugador1.setPlaceholderText("Jugador 1  —  controles: W A S D")
 
         lbl_j2 = QLabel("Nombre Jugador 2:")
-        lbl_j2.setStyleSheet("font-size: 18px;")
         self.jugador2 = QLineEdit()
-        self.jugador2.setPlaceholderText("Jugador 2")
-        self.jugador2.setStyleSheet("padding: 8px; font-size: 16px;")
-        layout.addWidget(lbl_j2)
-        layout.addWidget(self.jugador2)
+        self.jugador2.setPlaceholderText("Jugador 2  —  controles: ← ↑ ↓ →")
 
         lbl_ip = QLabel("IP del Servidor:")
-        lbl_ip.setStyleSheet("font-size: 18px;")
         self.ip = QLineEdit()
         self.ip.setPlaceholderText("192.168.1.1")
-        self.ip.setStyleSheet("padding: 8px; font-size: 16px;")
-        layout.addWidget(lbl_ip)
-        layout.addWidget(self.ip)
 
-        layout.addSpacerItem(QSpacerItem(20, 40, QSizePolicy.Minimum, QSizePolicy.Expanding))
+        campos = [
+            (lbl_j1, self.jugador1, "green"),
+            (lbl_j2, self.jugador2, "blue"),
+            (lbl_ip, self.ip,       "gray"),
+        ]
+        for lbl, campo, color in campos:
+            lbl.setStyleSheet(f"color: {color}; font-size: 18px; font-weight: bold;")
+            campo.setStyleSheet(f"""
+                QLineEdit {{
+                    color: white;
+                    font-size: 16px;
+                    padding: 10px;
+                    background-color: #1f1f35;
+                    border: 2px solid {color};
+                    border-radius: 10px;
+                }}
+            """)
+            layout.addWidget(lbl)
+            layout.addWidget(campo)
 
-        btn_volver = QPushButton("VOLVER AL MENÚ")
-        btn_volver.setStyleSheet("""
-            background-color: gray;
-            color: white;
-            font-size: 18px;
-            font-weight: bold;
-            padding: 10px;
-        """)
+        layout.addSpacerItem(QSpacerItem(20, 20, QSizePolicy.Minimum, QSizePolicy.Expanding))
+
+        # ── Botones ──
+        btn_volver  = QPushButton("[VOLVER AL MENÚ]")
+        btn_iniciar = QPushButton("[INICIAR JUEGO]")
+
+        botones = [
+            (btn_volver,  "gray"),
+            (btn_iniciar, "green"),
+        ]
+        for boton, color in botones:
+            boton.setFixedWidth(300)
+            boton.setStyleSheet(f"""
+                QPushButton {{
+                    color: {color};
+                    font-size: 20px;
+                    font-weight: bold;
+                    padding: 12px;
+                    background-color: #1f1f35;
+                    border: 2px solid {color};
+                    border-radius: 10px;
+                }}
+                QPushButton:hover {{ background-color: #2a2a4d; }}
+            """)
+
         btn_volver.clicked.connect(self.volver)
-        layout.addWidget(btn_volver)
-
-        btn_iniciar = QPushButton("INICIAR JUEGO")
-        btn_iniciar.setStyleSheet("""
-            background-color: red;
-            color: white;
-            font-size: 20px;
-            font-weight: bold;
-            padding: 12px;
-        """)
         btn_iniciar.clicked.connect(self.iniciar_juego)
-        layout.addWidget(btn_iniciar)
+
+        row_btns = QHBoxLayout()
+        row_btns.setAlignment(Qt.AlignCenter)
+        row_btns.setSpacing(30)
+        row_btns.addWidget(btn_volver)
+        row_btns.addWidget(btn_iniciar)
+        layout.addLayout(row_btns)
 
         self.setLayout(layout)
 
@@ -69,4 +93,7 @@ class ConfiguracionWindow(QWidget):
         self.parent.setCentralWidget(InicioWindow(self.parent))
 
     def iniciar_juego(self):
-        self.parent.setCentralWidget(JuegoWindow(self.parent))
+        from pantalla.juego import JuegoWindow
+        j1 = self.jugador1.text().strip() or "Jugador 1"
+        j2 = self.jugador2.text().strip() or "Jugador 2"
+        self.parent.setCentralWidget(JuegoWindow(self.parent, nombre_j1=j1, nombre_j2=j2))
