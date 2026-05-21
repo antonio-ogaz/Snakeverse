@@ -10,8 +10,8 @@ class Snakeverse(QMainWindow):
         self.setGeometry(100, 100, 800, 600)
 
         self.setAutoFillBackground(True)
-        palette = Qpalette()
-        palette.setColor(QPalette.window, QColor(0, 0, 0))
+        palette = QPalette()
+        palette.setColor(QPalette.Window, QColor(0, 0, 0))
         self.setPalette(palette)
         
         self.setCentralWidget(InicioWindow(self))
