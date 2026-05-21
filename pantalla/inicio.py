@@ -89,8 +89,8 @@ class InicioWindow(QWidget):
         self.parent.setCentralWidget(ConfiguracionWindow(self.parent))
 
     def abrir_puntuaciones(self):
-        self.parent.setCentralWidget(PuntuacionesWindow())
-
+    self.parent.setCentralWidget(PuntuacionesWindow(self.parent))
+    
     def mostrar_ajustes(self):
         ajustes = QLabel("Pantalla de AJUSTES")
         ajustes.setStyleSheet("""font-size: 18px; color: gray; """)
