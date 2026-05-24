@@ -1,176 +1,187 @@
 """
-pantalla/puntuaciones.py — Tabla de puntuaciones altas
-"""
+pantalla/puntuaciones.py — Tabla de puntuaciones altas  # Nombre del módulo
+""" 
 
-import json
-import os
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QPushButton, QTableWidget,
-    QTableWidgetItem, QHeaderView,
-)
-from PySide6.QtGui import QFont, QColor
-from PySide6.QtCore import Qt
+import json  # Importa manejo de archivos JSON
+import os  # Importa manejo del sistema operativo
 
-from utilidad.estilos import (
-    DORADO, GRIS, FONDO_CLARO, BORDE_ACTIVO,
-    estilo_ventana, estilo_boton_base, estilo_boton_rojo,
-)
+from PySide6.QtWidgets import (  # Importa widgets de PySide6
+    QWidget, QVBoxLayout, QHBoxLayout,  # Widgets de contenedores
+    QLabel, QPushButton, QTableWidget,  # Widgets de interfaz
+    QTableWidgetItem, QHeaderView,  # Widgets de tabla
+)  # Fin de importación
 
-ARCHIVO_PUNTUACIONES = "puntuaciones.json"
+from PySide6.QtGui import QFont, QColor  # Importa fuentes y colores
+from PySide6.QtCore import Qt  # Importa constantes Qt
 
+from utilidad.estilos import (  # Importa estilos personalizados
+    DORADO, GRIS, FONDO_CLARO, BORDE_ACTIVO,  # Colores personalizados
+    estilo_ventana, estilo_boton_base, estilo_boton_rojo,  # Funciones de estilos
+)  # Fin de importación
 
-def cargar_puntuaciones() -> list:
-    """Carga del JSON guardado o retorna lista vacía."""
-    if os.path.exists(ARCHIVO_PUNTUACIONES):
-        try:
-            with open(ARCHIVO_PUNTUACIONES, "r", encoding="utf-8") as f:
-                datos = json.load(f)
-                if datos and isinstance(datos, list):
-                    # Filtrar solo entradas que son diccionarios
-                    return [d for d in datos if isinstance(d, dict)]
-        except Exception:
-            pass
-    return []
+ARCHIVO_PUNTUACIONES = "puntuaciones.json"  # Nombre del archivo JSON
 
 
-class PantallaPuntuaciones(QWidget):
-    def __init__(self, ventana_principal=None):
-        super().__init__(ventana_principal)
-        self.ventana = ventana_principal
-        self.setStyleSheet(estilo_ventana())
-        self._construir_interfaz()
+def cargar_puntuaciones() -> list:  # Función para cargar puntuaciones
+    """Carga del JSON guardado o retorna lista vacía."""  # Descripción de función
+    if os.path.exists(ARCHIVO_PUNTUACIONES):  # Verifica si existe el archivo
+        try:  # Intenta abrir el archivo
+            with open(ARCHIVO_PUNTUACIONES, "r", encoding="utf-8") as f:  # Abre archivo
+                datos = json.load(f)  # Carga datos JSON
+                if datos and isinstance(datos, list):  # Verifica que sea lista
+                    return [d for d in datos if isinstance(d, dict)]  # Retorna solo diccionarios
+        except Exception:  # Captura errores
+            pass  # Ignora errores
+    return []  # Retorna lista vacía
 
-    def _construir_interfaz(self):
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(50, 30, 50, 30)
-        layout.setSpacing(14)
 
-        # Título
-        lbl_titulo = QLabel("⭐  PUNTUACIONES ALTAS")
-        lbl_titulo.setFont(QFont("Segoe UI", 26, QFont.Bold))
-        lbl_titulo.setStyleSheet(f"color: {DORADO}; background: transparent;")
-        lbl_titulo.setAlignment(Qt.AlignCenter)
-        layout.addWidget(lbl_titulo)
+class PantallaPuntuaciones(QWidget):  # Clase principal de puntuaciones
 
-        lbl_sub = QLabel("Los mejores jugadores de SNAKEVERSE")
-        lbl_sub.setFont(QFont("Segoe UI", 11))
-        lbl_sub.setStyleSheet(f"color: {GRIS}; background: transparent;")
-        lbl_sub.setAlignment(Qt.AlignCenter)
-        layout.addWidget(lbl_sub)
+    def __init__(self, ventana_principal=None):  # Constructor
+        super().__init__(ventana_principal)  # Inicializa QWidget
+        self.ventana = ventana_principal  # Guarda referencia de ventana
+        self.setStyleSheet(estilo_ventana())  # Aplica estilo general
+        self._construir_interfaz()  # Construye interfaz
 
-        layout.addSpacing(8)
+    def _construir_interfaz(self):  # Método para construir interfaz
+        layout = QVBoxLayout(self)  # Layout principal vertical
+        layout.setContentsMargins(50, 30, 50, 30)  # Márgenes
+        layout.setSpacing(14)  # Espaciado
 
-        # Tabla
-        self.tabla = QTableWidget()
-        self.tabla.setColumnCount(5)
-        self.tabla.setHorizontalHeaderLabels(
-            ["🏅 PUESTO", "JUGADOR", "PUNTOS", "RONDAS", "FECHA"]
-        )
-        self.tabla.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
-        self.tabla.setEditTriggers(QTableWidget.NoEditTriggers)
-        self.tabla.setSelectionBehavior(QTableWidget.SelectRows)
-        self.tabla.verticalHeader().setVisible(False)
-        self.tabla.setAlternatingRowColors(True)
-        self.tabla.setStyleSheet(f"""
-            QTableWidget {{
-                background-color: {FONDO_CLARO};
-                border: 2px solid {BORDE_ACTIVO};
-                border-radius: 8px;
-                gridline-color: #282840;
-                font-size: 13px;
-                outline: none;
+        lbl_titulo = QLabel("PUNTUACIONES ALTAS")  # Etiqueta de título
+        lbl_titulo.setFont(QFont("Segoe UI", 26, QFont.Bold))  # Fuente del título
+        lbl_titulo.setStyleSheet(f"color: {DORADO}; background: transparent;")  # Estilo
+        lbl_titulo.setAlignment(Qt.AlignCenter)  # Centra texto
+        layout.addWidget(lbl_titulo)  # Agrega título
+
+        lbl_sub = QLabel("Los mejores jugadores de SNAKEVERSE")  # Subtítulo
+        lbl_sub.setFont(QFont("Segoe UI", 11))  # Fuente subtítulo
+        lbl_sub.setStyleSheet(f"color: {GRIS}; background: transparent;")  # Estilo
+        lbl_sub.setAlignment(Qt.AlignCenter)  # Centra texto
+        layout.addWidget(lbl_sub)  # Agrega subtítulo
+
+        layout.addSpacing(8)  # Espacio extra
+
+        self.tabla = QTableWidget()  # Crea tabla
+        self.tabla.setColumnCount(5)  # Define columnas
+
+        self.tabla.setHorizontalHeaderLabels(  # Define encabezados
+            ["PUESTO", "JUGADOR", "PUNTOS", "RONDAS", "FECHA"]  # Lista encabezados
+        )  # Fin encabezados
+
+        self.tabla.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)  # Ajusta columnas
+        self.tabla.setEditTriggers(QTableWidget.NoEditTriggers)  # Deshabilita edición
+        self.tabla.setSelectionBehavior(QTableWidget.SelectRows)  # Selecciona filas
+        self.tabla.verticalHeader().setVisible(False)  # Oculta encabezado vertical
+        self.tabla.setAlternatingRowColors(True)  # Alterna colores
+
+        self.tabla.setStyleSheet(f"""  # Estilo tabla
+            QTableWidget {{  # Tabla principal
+                background-color: {FONDO_CLARO};  # Fondo
+                border: 2px solid {BORDE_ACTIVO};  # Borde
+                border-radius: 8px;  # Bordes redondeados
+                gridline-color: #282840;  # Color líneas
+                font-size: 13px;  # Tamaño texto
+                outline: none;  # Sin borde foco
             }}
-            QTableWidget::item {{
-                padding: 8px 14px;
-                border-bottom: 1px solid #202038;
+            QTableWidget::item {{  # Celdas
+                padding: 8px 14px;  # Espaciado interno
+                border-bottom: 1px solid #202038;  # Línea inferior
             }}
-            QTableWidget::item:selected {{
-                background-color: #2A1E00;
-                color: {DORADO};
+            QTableWidget::item:selected {{  # Celda seleccionada
+                background-color: #2A1E00;  # Fondo selección
+                color: {DORADO};  # Color texto
             }}
-            QTableWidget::item:alternate {{
-                background-color: #161625;
+            QTableWidget::item:alternate {{  # Filas alternas
+                background-color: #161625;  # Fondo alterno
             }}
-            QHeaderView::section {{
-                background-color: #0C0C1A;
-                color: {DORADO};
-                font-size: 11px;
-                font-weight: bold;
-                letter-spacing: 2px;
-                padding: 8px 12px;
-                border: none;
-                border-bottom: 2px solid {DORADO};
+            QHeaderView::section {{  # Encabezados
+                background-color: #0C0C1A;  # Fondo encabezado
+                color: {DORADO};  # Color texto
+                font-size: 11px;  # Tamaño texto
+                font-weight: bold;  # Texto negrita
+                letter-spacing: 2px;  # Espaciado letras
+                padding: 8px 12px;  # Espaciado interno
+                border: none;  # Sin borde
+                border-bottom: 2px solid {DORADO};  # Línea inferior
             }}
-        """)
-        layout.addWidget(self.tabla)
-        self._llenar_tabla()
+        """)  # Fin estilo tabla
 
-        # Botones
-        fila = QHBoxLayout()
-        fila.setSpacing(14)
-        btn_limpiar = QPushButton("🗑  LIMPIAR HISTORIAL")
-        btn_volver = QPushButton("← VOLVER AL MENÚ")
-        btn_limpiar.setStyleSheet(estilo_boton_rojo())
-        btn_volver.setStyleSheet(estilo_boton_base())
-        btn_limpiar.setCursor(Qt.PointingHandCursor)
-        btn_volver.setCursor(Qt.PointingHandCursor)
-        fila.addStretch()
-        fila.addWidget(btn_limpiar)
-        fila.addWidget(btn_volver)
-        fila.addStretch()
-        layout.addLayout(fila)
+        layout.addWidget(self.tabla)  # Agrega tabla
+        self._llenar_tabla()  # Llena tabla
 
-        btn_limpiar.clicked.connect(self._limpiar)
-        btn_volver.clicked.connect(self._volver)
+        fila = QHBoxLayout()  # Layout horizontal botones
+        fila.setSpacing(14)  # Espaciado botones
 
-    def _llenar_tabla(self):
-        medallas = ["🥇", "🥈", "🥉"]
-        colores = {
-            0: QColor(DORADO),
-            1: QColor("#C8C8C8"),
-            2: QColor("#CD7F32"),
-        }
-        lista = cargar_puntuaciones()
-        self.tabla.setRowCount(0)
+        btn_limpiar = QPushButton("LIMPIAR HISTORIAL")  # Botón limpiar
+        btn_volver = QPushButton("VOLVER AL MENÚ")  # Botón volver
 
-        for pos, entrada in enumerate(lista[:20]):
-            self.tabla.insertRow(pos)
+        btn_limpiar.setStyleSheet(estilo_boton_rojo())  # Estilo botón limpiar
+        btn_volver.setStyleSheet(estilo_boton_base())  # Estilo botón volver
 
-            # Asegurar que entrada es un diccionario
-            if isinstance(entrada, dict):
-                nombre = entrada.get("nombre", "—")
-                puntos = str(entrada.get("puntos", 0))
-                rondas = entrada.get("rondas", "—")
-                fecha = entrada.get("fecha", "—")
-            else:
-                # Si no es diccionario, ignorar esta entrada
-                continue
+        btn_limpiar.setCursor(Qt.PointingHandCursor)  # Cursor mano
+        btn_volver.setCursor(Qt.PointingHandCursor)  # Cursor mano
 
-            puesto = medallas[pos] if pos < 3 else str(pos + 1)
-            valores = [puesto, nombre, puntos, rondas, fecha]
+        fila.addStretch()  # Espaciador
+        fila.addWidget(btn_limpiar)  # Agrega botón limpiar
+        fila.addWidget(btn_volver)  # Agrega botón volver
+        fila.addStretch()  # Espaciador
 
-            for col, valor in enumerate(valores):
-                celda = QTableWidgetItem(valor)
-                celda.setTextAlignment(Qt.AlignCenter)
-                if pos in colores:
-                    celda.setForeground(colores[pos])
-                self.tabla.setItem(pos, col, celda)
+        layout.addLayout(fila)  # Agrega fila botones
 
-        # Si no hay datos, mostrar mensaje
-        if len(lista) == 0:
-            self.tabla.setRowCount(1)
-            celda = QTableWidgetItem("📭  No hay puntuaciones registradas  📭")
-            celda.setTextAlignment(Qt.AlignCenter)
-            self.tabla.setItem(0, 0, celda)
-            # Unir celdas
-            self.tabla.setSpan(0, 0, 1, 5)
+        btn_limpiar.clicked.connect(self._limpiar)  # Conecta botón limpiar
+        btn_volver.clicked.connect(self._volver)  # Conecta botón volver
 
-    def _limpiar(self):
-        if os.path.exists(ARCHIVO_PUNTUACIONES):
-            os.remove(ARCHIVO_PUNTUACIONES)
-        self._llenar_tabla()
+    def _llenar_tabla(self):  # Método llenar tabla
 
-    def _volver(self):
-        from pantalla.inicio import PantallaInicio
-        self.ventana.setCentralWidget(PantallaInicio(self.ventana))
+        colores = {  # Diccionario colores
+            0: QColor(DORADO),  # Primer lugar
+            1: QColor("#C8C8C8"),  # Segundo lugar
+            2: QColor("#CD7F32"),  # Tercer lugar
+        }  # Fin diccionario
+
+        lista = cargar_puntuaciones()  # Carga puntuaciones
+        self.tabla.setRowCount(0)  # Reinicia filas
+
+        for pos, entrada in enumerate(lista[:20]):  # Recorre top 20
+            self.tabla.insertRow(pos)  # Inserta fila
+
+            if isinstance(entrada, dict):  # Verifica diccionario
+                nombre = entrada.get("nombre", "—")  # Obtiene nombre
+                puntos = str(entrada.get("puntos", 0))  # Obtiene puntos
+                rondas = entrada.get("rondas", "—")  # Obtiene rondas
+                fecha = entrada.get("fecha", "—")  # Obtiene fecha
+            else:  # Si no es válido
+                continue  # Continúa ciclo
+
+            puesto = str(pos + 1)  # Número posición
+            valores = [puesto, nombre, puntos, rondas, fecha]  # Lista valores
+
+            for col, valor in enumerate(valores):  # Recorre columnas
+                celda = QTableWidgetItem(valor)  # Crea celda
+                celda.setTextAlignment(Qt.AlignCenter)  # Centra texto
+
+                if pos in colores:  # Verifica posición especial
+                    celda.setForeground(colores[pos])  # Aplica color
+
+                self.tabla.setItem(pos, col, celda)  # Inserta celda
+
+        if len(lista) == 0:  # Si no hay datos
+            self.tabla.setRowCount(1)  # Crea una fila
+
+            celda = QTableWidgetItem("No hay puntuaciones registradas")  # Mensaje vacío
+            celda.setTextAlignment(Qt.AlignCenter)  # Centra mensaje
+
+            self.tabla.setItem(0, 0, celda)  # Inserta mensaje
+            self.tabla.setSpan(0, 0, 1, 5)  # Une columnas
+
+    def _limpiar(self):  # Método limpiar historial
+        if os.path.exists(ARCHIVO_PUNTUACIONES):  # Verifica archivo
+            os.remove(ARCHIVO_PUNTUACIONES)  # Elimina archivo
+
+        self._llenar_tabla()  # Actualiza tabla
+
+    def _volver(self):  # Método volver
+        from pantalla.inicio import PantallaInicio  # Importa pantalla inicio
+        self.ventana.setCentralWidget(PantallaInicio(self.ventana))  # Cambia pantalla
+       
