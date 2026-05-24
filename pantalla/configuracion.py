@@ -96,6 +96,37 @@ class PantallaConfiguracion(QWidget):  # Clase principal de configuración
         self.setStyleSheet(estilo_ventana())  # Aplicar estilo ventana
         self._construir_interfaz()  # Construir interfaz
 
+    def _aplicar_estilo_modo(self):
+        """Actualiza el estilo visual de los botones segun el modo activo."""
+        estilos = {
+            "local":     (self.btn_local,     VERDE),
+            "anfitrion": (self.btn_anfitrion, CIAN),
+            "cliente":   (self.btn_cliente,   NARANJA),
+        }
+        for modo, (btn, color) in estilos.items():
+            activo = (self.modo_red == modo)
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {'rgba(0,0,0,0)' if not activo else color};
+                    color: {color if not activo else '#0D0D1A'};
+                    border: 2px solid {color};
+                    border-radius: 6px;
+                    padding: 6px 12px;
+                }}
+                QPushButton:hover {{
+                    background-color: {color};
+                    color: #0D0D1A;
+                }}
+            """)
+
+    def _cambiar_modo(self, modo: str):
+        """Cambia el modo de red y actualiza la UI."""
+        self.modo_red = modo
+        self.btn_local.setChecked(modo == "local")
+        self.btn_anfitrion.setChecked(modo == "anfitrion")
+        self.btn_cliente.setChecked(modo == "cliente")
+        self._aplicar_estilo_modo()
+
     # interfaz  # Comentario de sección
 
     def _construir_interfaz(self):  # Método para crear interfaz
@@ -364,7 +395,9 @@ class PantallaConfiguracion(QWidget):  # Clase principal de configuración
         fila_modo.addWidget(self.btn_anfitrion)  # Agregar botón anfitrión
         fila_modo.addWidget(self.btn_cliente)  # Agregar botón cliente
 
-        lay.addLayout(fila_modo)  # Agregar fila al layout 
+        lay.addLayout(fila_modo)  # Agregar fila al layout
+
+        return frame
 
     def _hilo_servidor(self):  # Método que ejecuta el servidor en segundo plano
         """Hilo: escucha conexiones entrantes."""  # Explicación del método

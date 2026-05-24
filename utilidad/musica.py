@@ -18,10 +18,11 @@ class GestorMusica:
     """
 
     def __init__(self):
-        self._reproductor  = None
-        self._salida_audio = None
-        self._iniciado     = False
-        self._volumen      = 0.70
+        self._reproductor        = None
+        self._salida_audio       = None
+        self._iniciado           = False
+        self._volumen            = 0.70
+        self._pausado_por_usuario = False  # True solo cuando el usuario desactiva la música
 
     def _configurar(self):
         #crea el reproductor
@@ -45,18 +46,22 @@ class GestorMusica:
     def iniciar(self):
         #inicia la reproduccion si no esta
         self._configurar()
-        estado = self._reproductor.playbackState()
-        if estado != QMediaPlayer.PlaybackState.PlayingState:
-            self._reproductor.play()
+        # Solo arranca si el usuario NO la pausó manualmente
+        if not self._pausado_por_usuario:
+            estado = self._reproductor.playbackState()
+            if estado != QMediaPlayer.PlaybackState.PlayingState:
+                self._reproductor.play()
 
     def pausar(self):
         #pausa la musica
         if self._iniciado and self._reproductor:
+            self._pausado_por_usuario = True
             self._reproductor.pause()
 
     def reanudar(self):
         #reaunuda la musica
         if self._iniciado and self._reproductor:
+            self._pausado_por_usuario = False
             self._reproductor.play()
 
     def alternar(self):
@@ -66,8 +71,10 @@ class GestorMusica:
             return
         estado = self._reproductor.playbackState()
         if estado == QMediaPlayer.PlaybackState.PlayingState:
+            self._pausado_por_usuario = True
             self._reproductor.pause()
         else:
+            self._pausado_por_usuario = False
             self._reproductor.play()
 
     def esta_activa(self) -> bool:
