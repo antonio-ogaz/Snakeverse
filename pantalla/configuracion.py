@@ -248,43 +248,6 @@ class LobbyRed:
             try: self._sock.close()
             except Exception: pass
 
-    def _lanzar_juego(self, config: dict):
-        """Navega a PantallaJuego pasando el socket protegido ya establecido."""
-        from pantalla.juego import PantallaJuego
-        musica.pausar()
-
-        # Pasar el socket del lobby al juego para reutilizarlo
-        sock_heredado = self._red._sock
-        self._red._activo = False  # detener el loop del lobby sin cerrar el socket
-
-        pantalla_juego = PantallaJuego(
-            ventana_principal=self.ventana,
-            nombre_j1=config["nombre_j1"],
-            nombre_j2=config["nombre_j2"],
-            ip_red=self._red.ip,
-            modo_red=config["modo_red"],
-            color_j1=config["color_j1"],
-            color_j2=config["color_j2"],
-            sock_existente=sock_heredado  # Pasamos la conexión viva
-        )
-
-        # Asume que tu ventana principal tiene un método para cambiar la vista.
-        # Ajusta esto según el router/gestor que uses (ej. self.ventana.setCentralWidget)
-        if hasattr(self.ventana, 'cambiar_pantalla'):
-            self.ventana.cambiar_pantalla(pantalla_juego)
-
-    def _en_iniciar_partida(self, config: dict):
-        """El cliente recibe la orden del anfitrión para iniciar y salta a la partida."""
-        # El anfitrión manda la config general; el cliente fuerza su propio modo
-        config["modo_red"] = "cliente"
-        self._lanzar_juego(config)
-
-    def _en_conectado_ok(self, nombre_anfitrion: str):
-        # ... (Asegúrate de que este callback de tu lobby exista para actualizar la UI del cliente)
-        self._lbl_rival_nombre.setText(nombre_anfitrion)
-        self._lbl_rival_estado.setText("✅  Conectado")
-        self._lbl_estado_conexion.setText("✅  Conectado. Esperando al anfitrión...")
-
 
 # ── Widget: selector de color ────────────────────────────────
 class SelectorColor(QFrame):
@@ -873,6 +836,7 @@ class PantallaConfiguracion(QWidget):
 
         # Pasar el socket del lobby al juego para reutilizarlo
         sock = self._red._sock
+        ip_red = self._red.ip
         self._red._activo = False  # detener el loop del lobby sin cerrar el socket
 
         self.ventana.setCentralWidget(
@@ -880,8 +844,9 @@ class PantallaConfiguracion(QWidget):
                 self.ventana,
                 nombre_j1 = config["nombre_j1"],
                 nombre_j2 = config["nombre_j2"],
-                color_j1  = tuple(config["color_j1"]),
-                color_j2  = tuple(config["color_j2"]),
+                color_j1  = config["color_j1"],
+                color_j2  = config["color_j2"],
+                ip_red    = ip_red,
                 modo_red  = config.get("modo_red", "local"),
                 sock_existente = sock,
             )
