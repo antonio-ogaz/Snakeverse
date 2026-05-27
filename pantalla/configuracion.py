@@ -1,630 +1,970 @@
 """
-pantalla/configuracion.py — Configuración de partida  # Archivo de configuración de la pantalla de partida
+pantalla/configuracion.py — Lobby de partida SNAKEVERSE
 
-Incluye:  # Descripción de funcionalidades
-  - Nombre de cada jugador  # Permite escribir nombres
-  - Selector de color de serpiente (swatches visuales)  # Permite elegir colores
-  - Configuración de red con modo ANFITRIÓN / CLIENTE / LOCAL  # Modos de conexión
-    Anfitrión: crea la sala, muestra su IP para compartir  # Función del anfitrión
-    Cliente:   ingresa la IP del anfitrión y se conecta  # Función del cliente
+Flujo:
+  1. Pantalla de entrada : nombre + elegir Anfitrión / Cliente
+  2a. Sala Anfitrión     : muestra IP, selector de color, espera al cliente
+  2b. Sala Cliente       : campo IP + conectar, luego selector de color
+  3. Ambos listos        : el anfitrión pulsa "INICIAR" y arranca el juego
 """
 
-import socket  # Librería para conexiones de red
-import threading  # Librería para manejar hilos
-import os  # Librería del sistema operativo
+import socket
+import threading
+import json
+import struct
 
-from PySide6.QtWidgets import (  # Importación de widgets de PySide6
-    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,  # Layouts y contenedores
-    QLabel, QLineEdit, QPushButton,  # Widgets básicos
-    QSpacerItem, QSizePolicy, QFrame, QButtonGroup,  # Espaciadores y marcos
+from PySide6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
+    QLabel, QLineEdit, QPushButton, QFrame,
+    QStackedWidget, QSizePolicy,
 )
+from PySide6.QtGui import QFont, QColor
+from PySide6.QtCore import Qt, QTimer, Signal, QObject
 
-from PySide6.QtGui import QFont, QColor  # Manejo de fuentes y colores
-from PySide6.QtCore import Qt, QTimer, Signal, QObject  # Utilidades principales de Qt
-
-from utilidad.estilos import (  # Importación de estilos personalizados
-    DORADO, DORADO_CLARO, VERDE, AZUL, CIAN, ROJO,  # Colores principales
-    BLANCO_CALIDO, GRIS, NARANJA, MORADO,  # Más colores
-    FONDO_MEDIO, FONDO_OSCURO, BORDE_ACTIVO,  # Fondos y bordes
-    estilo_ventana, estilo_input,  # Funciones de estilos
-    estilo_boton_verde, estilo_boton_base,  # Estilos de botones
-    estilo_boton_azul, estilo_boton_rojo,  # Más estilos
+from utilidad.estilos import (
+    DORADO, DORADO_CLARO, VERDE, AZUL, CIAN, ROJO,
+    BLANCO_CALIDO, GRIS, NARANJA, MORADO,
+    FONDO_OSCURO, FONDO_MEDIO, FONDO_CLARO, BORDE, BORDE_ACTIVO,
+    estilo_ventana, estilo_input,
+    estilo_boton_verde, estilo_boton_base, estilo_boton_rojo,
+    estilo_boton_azul,
 )
+from utilidad.musica import musica
 
-from utilidad.musica import musica  # Controlador de música del juego
-
-# Colores disponibles para cada jugador  # Comentario descriptivo
-COLORES_J1 = [  # Lista de colores para jugador 1
+# ── Paleta de colores disponibles ────────────────────────────
+PALETA = [
     ("#2ECC40", "#1A8C28"),   # verde vibrante
     ("#40FF60", "#20B040"),   # verde neón
-    ("#FFD040", "#C09010"),   # dorado
-    ("#80FF40", "#40B020"),   # lima
-    ("#20E8A0", "#10A060"),   # turquesa
-    ("#40D8FF", "#2090C0"),   # cian
-    ("#C060FF", "#7020C0"),   # morado
-    ("#FF9040", "#C05020"),   # naranja
-]
-
-COLORES_J2 = [  # Lista de colores para jugador 2
     ("#209AE8", "#1464A8"),   # azul eléctrico
     ("#40B8FF", "#1880D0"),   # azul cielo
+    ("#FFD040", "#C09010"),   # dorado
     ("#E03060", "#A01040"),   # rojo vibrante
     ("#FF4080", "#C02060"),   # magenta
-    ("#E8C020", "#A08010"),   # amarillo
-    ("#FF6040", "#C03020"),   # rojo-naranja
-    ("#A0A8FF", "#6068C8"),   # lavanda
+    ("#FF9040", "#C05020"),   # naranja
+    ("#80FF40", "#40B020"),   # lima
+    ("#20E8A0", "#10A060"),   # turquesa
+    ("#C060FF", "#7020C0"),   # morado
     ("#4DD0E1", "#006064"),   # agua
 ]
 
-PUERTO_RED = 5555  # Puerto utilizado para conexión en red
+PUERTO = 5555
 
 
-def obtener_ip_local() -> str:  # Función para obtener IP local
-    """Obtiene la IP local en la red LAN."""  # Descripción de la función
-    try:  # Intentar ejecutar
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # Crear socket UDP
-        s.connect(("8.8.8.8", 80))  # Conectarse temporalmente a Google DNS
-        ip = s.getsockname()[0]  # Obtener IP local
-        s.close()  # Cerrar socket
-        return ip  # Retornar IP
-    except Exception:  # Si ocurre error
-        return "127.0.0.1"  # Retornar localhost
+# ── Utilidades de red ─────────────────────────────────────────
+def _ip_local() -> str:
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return "127.0.0.1"
 
 
-class SeñalesRed(QObject):  # Clase de señales Qt
-    """Señales Qt para comunicar el hilo de red con la UI."""  # Descripción
-    conectado = Signal()  # Señal cuando conecta
-    error = Signal(str)  # Señal de error
-    cliente_listo = Signal(str)  # Señal con IP del cliente conectado
+def _enviar(sock, datos: dict):
+    raw = json.dumps(datos).encode("utf-8")
+    sock.sendall(struct.pack(">I", len(raw)) + raw)
 
 
-class PantallaConfiguracion(QWidget):  # Clase principal de configuración
-    def __init__(self, ventana_principal=None):  # Constructor
-        super().__init__(ventana_principal)  # Inicializar QWidget padre
+def _recibir(sock) -> dict | None:
+    try:
+        hdr = _recibir_exacto(sock, 4)
+        if not hdr:
+            return None
+        n = struct.unpack(">I", hdr)[0]
+        raw = _recibir_exacto(sock, n)
+        return json.loads(raw.decode("utf-8")) if raw else None
+    except Exception:
+        return None
 
-        self.ventana = ventana_principal  # Guardar referencia de ventana
-        self.color_j1 = COLORES_J1[0]  # Color inicial jugador 1
-        self.color_j2 = COLORES_J2[0]  # Color inicial jugador 2
 
-        self.modo_red = "local"  # Modo de red inicial
-        self._socket_srv = None  # Socket del servidor
+def _recibir_exacto(sock, n) -> bytes | None:
+    buf = b""
+    while len(buf) < n:
+        trozo = sock.recv(n - len(buf))
+        if not trozo:
+            return None
+        buf += trozo
+    return buf
 
-        self._señales_red = SeñalesRed()  # Crear objeto de señales
-        self._señales_red.conectado.connect(self._en_conectado)  # Conectar señal conectado
-        self._señales_red.error.connect(self._en_error_red)  # Conectar señal error
 
-        self.setStyleSheet(estilo_ventana())  # Aplicar estilo ventana
-        self._construir_interfaz()  # Construir interfaz
+# ── Señales Qt para comunicación hilo ↔ UI ───────────────────
+class Señales(QObject):
+    cliente_conectado = Signal(str)   # anfitrión: nombre del cliente
+    conectado_ok      = Signal(str)   # cliente: nombre del anfitrión
+    color_rival       = Signal(list)  # color actualizado del rival
+    rival_listo       = Signal(bool)  # rival cambió estado listo
+    iniciar_partida   = Signal(dict)  # anfitrión ordena iniciar
+    error             = Signal(str)
 
-    def _aplicar_estilo_modo(self):
-        """Actualiza el estilo visual de los botones segun el modo activo."""
-        estilos = {
-            "local":     (self.btn_local,     VERDE),
-            "anfitrion": (self.btn_anfitrion, CIAN),
-            "cliente":   (self.btn_cliente,   NARANJA),
-        }
-        for modo, (btn, color) in estilos.items():
-            activo = (self.modo_red == modo)
-            btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {'rgba(0,0,0,0)' if not activo else color};
-                    color: {color if not activo else '#0D0D1A'};
-                    border: 2px solid {color};
-                    border-radius: 6px;
-                    padding: 6px 12px;
-                }}
-                QPushButton:hover {{
-                    background-color: {color};
-                    color: #0D0D1A;
-                }}
-            """)
 
-    def _cambiar_modo(self, modo: str):
-        """Cambia el modo de red y actualiza la UI."""
-        self.modo_red = modo
-        self.btn_local.setChecked(modo == "local")
-        self.btn_anfitrion.setChecked(modo == "anfitrion")
-        self.btn_cliente.setChecked(modo == "cliente")
-        self._aplicar_estilo_modo()
-        self._actualizar_ui_red()  # NUEVO: Actualizar UI según el modo
+# ── Gestor de conexión del lobby ──────────────────────────────
+class LobbyRed:
+    """
+    Maneja el TCP del lobby antes de iniciar la partida.
+    Mensajes:
+      unirse   : cliente → anfitrión al conectar  {"tipo":"unirse","nombre":...,"color":...}
+      bienvenida: anfitrión → cliente              {"tipo":"bienvenida","nombre":...,"color":...}
+      color    : cualquiera → rival               {"tipo":"color","color":...}
+      listo    : cualquiera → rival               {"tipo":"listo","valor":bool}
+      iniciar  : anfitrión → cliente              {"tipo":"iniciar","config":{...}}
+    """
 
-    # interfaz  # Comentario de sección
+    def __init__(self, modo: str, ip: str = ""):
+        self.modo    = modo   # "anfitrion" | "cliente"
+        self.ip      = ip
+        self._sock   = None
+        self._srv    = None
+        self._activo = False
+        self.señales = Señales()
 
-    def _construir_interfaz(self):  # Método para crear interfaz
-        # Scroll area para pantallas pequeñas  # Comentario
-        layout_raiz = QVBoxLayout(self)  # Layout principal vertical
-        layout_raiz.setContentsMargins(0, 0, 0, 0)  # M��rgenes en cero
-        layout_raiz.setSpacing(0)  # Espaciado cero
+    # ── Conexión ──────────────────────────────────────────────
 
-        # Contenido scrollable  # Comentario
-        contenido = QWidget()  # Widget contenedor
-        contenido.setStyleSheet("background: transparent;")  # Fondo transparente
+    def escuchar(self, nombre: str, color: list):
+        """Anfitrión: abre servidor y espera al cliente."""
+        threading.Thread(
+            target=self._hilo_anfitrion, args=(nombre, color), daemon=True
+        ).start()
 
-        layout = QVBoxLayout(contenido)  # Layout interno
-        layout.setContentsMargins(60, 30, 60, 30)  # Márgenes internos
-        layout.setSpacing(0)  # Sin separación
+    def conectar(self, ip: str, nombre: str, color: list):
+        """Cliente: conecta al anfitrión."""
+        self.ip = ip
+        threading.Thread(
+            target=self._hilo_cliente, args=(nombre, color), daemon=True
+        ).start()
 
-        lbl_titulo = QLabel("⚙  CONFIGURAR PARTIDA")  # Etiqueta título
-        lbl_titulo.setFont(QFont("Segoe UI", 24, QFont.Bold))  # Fuente título
-        lbl_titulo.setStyleSheet(f"color: {DORADO}; background: transparent;")  # Estilo título
-        lbl_titulo.setAlignment(Qt.AlignCenter)  # Centrar texto
+    def _hilo_anfitrion(self, nombre: str, color: list):
+        try:
+            srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            srv.bind(("", PUERTO))
+            srv.listen(1)
+            srv.settimeout(180)
+            self._srv = srv
+            conn, _ = srv.accept()
+            srv.close(); self._srv = None
+            self._sock   = conn
+            self._activo = True
 
-        layout.addWidget(lbl_titulo)  # Agregar título
-        layout.addSpacing(4)  # Espacio
+            # Recibir presentación del cliente
+            msg = _recibir(self._sock)
+            if not msg or msg.get("tipo") != "unirse":
+                raise ConnectionError("Protocolo inválido")
 
-        lbl_sub = QLabel("Nombres, colores y modo de conexión")  # Subtítulo
-        lbl_sub.setFont(QFont("Segoe UI", 10))  # Fuente subtítulo
-        lbl_sub.setStyleSheet(f"color: {GRIS}; background: transparent;")  # Estilo subtítulo
-        lbl_sub.setAlignment(Qt.AlignCenter)  # Centrar subtítulo
+            nombre_cliente = msg.get("nombre", "Cliente")
+            color_cliente  = msg.get("color", PALETA[2])
 
-        layout.addWidget(lbl_sub)  # Agregar subtítulo
-        layout.addSpacing(20)  # Espacio
+            # Responder con los datos del anfitrión
+            _enviar(self._sock, {
+                "tipo":   "bienvenida",
+                "nombre": nombre,
+                "color":  color,
+            })
 
-        # Jugadores  # Comentario
-        fila_jugadores = QHBoxLayout()  # Layout horizontal jugadores
-        fila_jugadores.setSpacing(16)  # Espaciado entre tarjetas
+            self.señales.cliente_conectado.emit(nombre_cliente)
+            self.señales.color_rival.emit(color_cliente)
 
-        fila_jugadores.addWidget(self._tarjeta_jugador(1))  # Tarjeta jugador 1
-        fila_jugadores.addWidget(self._tarjeta_jugador(2))  # Tarjeta jugador 2
+            # Iniciar loop de mensajes
+            threading.Thread(target=self._loop_mensajes, daemon=True).start()
 
-        layout.addLayout(fila_jugadores)  # Agregar fila
-        layout.addSpacing(16)  # Espacio
+        except Exception as e:
+            self.señales.error.emit(str(e))
 
-        # Configuración de red  # Comentario
-        self._frame_red = self._tarjeta_red()  # NUEVO: Guardar frame para actualizar
-        layout.addWidget(self._frame_red)  # Agregar tarjeta red
-        layout.addSpacing(20)  # Espacio
+    def _hilo_cliente(self, nombre: str, color: list):
+        try:
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(15)
+            s.connect((self.ip, PUERTO))
+            s.settimeout(None)
+            self._sock   = s
+            self._activo = True
 
-        # Botones inferiores  # Comentario
-        fila_botones = QHBoxLayout()  # Layout horizontal botones
-        fila_botones.setSpacing(14)  # Espaciado
+            # Presentarse al anfitrión
+            _enviar(self._sock, {
+                "tipo":   "unirse",
+                "nombre": nombre,
+                "color":  color,
+            })
 
-        btn_volver = QPushButton("← VOLVER")  # Botón volver
-        btn_iniciar = QPushButton("▶  INICIAR JUEGO")  # Botón iniciar
+            # Recibir datos del anfitrión
+            msg = _recibir(self._sock)
+            if not msg or msg.get("tipo") != "bienvenida":
+                raise ConnectionError("Sin respuesta del anfitrión")
 
-        btn_volver.setStyleSheet(estilo_boton_base())  # Estilo botón volver
-        btn_iniciar.setStyleSheet(estilo_boton_verde())  # Estilo botón iniciar
+            nombre_anfitrion = msg.get("nombre", "Anfitrión")
+            color_anfitrion  = msg.get("color", PALETA[0])
 
-        btn_volver.setMinimumWidth(160)  # Ancho mínimo volver
-        btn_iniciar.setMinimumWidth(200)  # Ancho mínimo iniciar
+            self.señales.conectado_ok.emit(nombre_anfitrion)
+            self.señales.color_rival.emit(color_anfitrion)
 
-        btn_volver.setCursor(Qt.PointingHandCursor)  # Cursor tipo mano
-        btn_iniciar.setCursor(Qt.PointingHandCursor)  # Cursor tipo mano
+            # Iniciar loop de mensajes
+            threading.Thread(target=self._loop_mensajes, daemon=True).start()
 
-        fila_botones.addStretch()  # Espaciador
-        fila_botones.addWidget(btn_volver)  # Agregar botón volver
-        fila_botones.addWidget(btn_iniciar)  # Agregar botón iniciar
-        fila_botones.addStretch()  # Espaciador
+        except Exception as e:
+            self.señales.error.emit(str(e))
 
-        layout.addLayout(fila_botones)  # Agregar layout botones
+    def _loop_mensajes(self):
+        """Loop que escucha mensajes del rival mientras estamos en el lobby."""
+        while self._activo:
+            msg = _recibir(self._sock)
+            if msg is None:
+                self._activo = False
+                self.señales.error.emit("Rival desconectado")
+                break
+            tipo = msg.get("tipo")
+            if tipo == "color":
+                self.señales.color_rival.emit(msg["color"])
+            elif tipo == "listo":
+                self.señales.rival_listo.emit(msg["valor"])
+            elif tipo == "iniciar":
+                self._activo = False
+                self.señales.iniciar_partida.emit(msg["config"])
 
-        btn_volver.clicked.connect(self._volver)  # Conectar botón volver
-        btn_iniciar.clicked.connect(self._iniciar)  # Conectar botón iniciar
+    # ── Envíos ────────────────────────────────────────────────
 
-        layout_raiz.addWidget(contenido)  # Agregar contenido al layout raíz 
+    def enviar_color(self, color: list):
+        if self._activo and self._sock:
+            try: _enviar(self._sock, {"tipo": "color", "color": color})
+            except Exception: pass
 
-    # Tarjeta de jugador con nombre + selector de color  # Comentario de sección
+    def enviar_listo(self, valor: bool):
+        if self._activo and self._sock:
+            try: _enviar(self._sock, {"tipo": "listo", "valor": valor})
+            except Exception: pass
 
-    def _tarjeta_jugador(self, numero: int) -> QFrame:  # Método para crear tarjeta de jugador
-        es_j1 = (numero == 1)  # Verificar si es jugador 1
-        color_acento = VERDE if es_j1 else AZUL  # Elegir color de borde
-        colores = COLORES_J1 if es_j1 else COLORES_J2  # Seleccionar lista de colores
-        titulo = "🟢  JUGADOR 1" if es_j1 else "🔵  JUGADOR 2"  # Texto del título
-        placeholder = "Nombre J1" if es_j1 else "Nombre J2"  # Placeholder del input
-        pista = "WASD + Q" if es_j1 else "↑↓←→ + /"  # Controles del jugador
+    def enviar_iniciar(self, config: dict):
+        """Solo el anfitrión llama esto."""
+        if self._activo and self._sock:
+            try: _enviar(self._sock, {"tipo": "iniciar", "config": config})
+            except Exception: pass
 
-        frame = QFrame()  # Crear marco principal
-        frame.setStyleSheet(f"""
+    def cancelar(self):
+        self._activo = False
+        if self._srv:
+            try: self._srv.close()
+            except Exception: pass
+        if self._sock:
+            try: self._sock.close()
+            except Exception: pass
+
+    def _lanzar_juego(self, config: dict):
+        """Navega a PantallaJuego pasando el socket protegido ya establecido."""
+        from pantalla.juego import PantallaJuego
+        musica.pausar()
+
+        # Pasar el socket del lobby al juego para reutilizarlo
+        sock_heredado = self._red._sock
+        self._red._activo = False  # detener el loop del lobby sin cerrar el socket
+
+        pantalla_juego = PantallaJuego(
+            ventana_principal=self.ventana,
+            nombre_j1=config["nombre_j1"],
+            nombre_j2=config["nombre_j2"],
+            ip_red=self._red.ip,
+            modo_red=config["modo_red"],
+            color_j1=config["color_j1"],
+            color_j2=config["color_j2"],
+            sock_existente=sock_heredado  # Pasamos la conexión viva
+        )
+
+        # Asume que tu ventana principal tiene un método para cambiar la vista.
+        # Ajusta esto según el router/gestor que uses (ej. self.ventana.setCentralWidget)
+        if hasattr(self.ventana, 'cambiar_pantalla'):
+            self.ventana.cambiar_pantalla(pantalla_juego)
+
+    def _en_iniciar_partida(self, config: dict):
+        """El cliente recibe la orden del anfitrión para iniciar y salta a la partida."""
+        # El anfitrión manda la config general; el cliente fuerza su propio modo
+        config["modo_red"] = "cliente"
+        self._lanzar_juego(config)
+
+    def _en_conectado_ok(self, nombre_anfitrion: str):
+        # ... (Asegúrate de que este callback de tu lobby exista para actualizar la UI del cliente)
+        self._lbl_rival_nombre.setText(nombre_anfitrion)
+        self._lbl_rival_estado.setText("✅  Conectado")
+        self._lbl_estado_conexion.setText("✅  Conectado. Esperando al anfitrión...")
+
+
+# ── Widget: selector de color ────────────────────────────────
+class SelectorColor(QFrame):
+    color_cambiado = Signal(list)
+
+    def __init__(self, color_inicial: list, titulo: str, color_acento: str):
+        super().__init__()
+        self.color_actual = color_inicial
+        self.setStyleSheet(f"""
             QFrame {{
                 background-color: {FONDO_MEDIO};
                 border: 2px solid {color_acento};
-                border-radius: 8px;
+                border-radius: 10px;
             }}
-        """)  # Aplicar estilo visual
+        """)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(16, 14, 16, 14)
+        lay.setSpacing(10)
 
-        lay = QVBoxLayout(frame)  # Crear layout vertical
-        lay.setContentsMargins(16, 14, 16, 14)  # Márgenes internos
-        lay.setSpacing(10)  # Espaciado interno
+        lbl = QLabel(titulo)
+        lbl.setFont(QFont("Segoe UI", 11, QFont.Bold))
+        lbl.setStyleSheet(f"color: {color_acento}; background: transparent; border: none;")
+        lay.addWidget(lbl)
 
-        # Título de la tarjeta  # Comentario
-        lbl = QLabel(titulo)  # Crear etiqueta título
-        lbl.setFont(QFont("Segoe UI", 13, QFont.Bold))  # Fuente del título
-        lbl.setStyleSheet(
-            f"color: {color_acento}; background: transparent; border: none;"
-        )  # Estilo del texto
+        # Preview de color
+        self.preview = QFrame()
+        self.preview.setFixedHeight(18)
+        self.preview.setStyleSheet(
+            f"background-color: {color_inicial[0]}; border-radius: 6px; border: none;"
+        )
+        lay.addWidget(self.preview)
 
-        lay.addWidget(lbl)  # Agregar título al layout
+        # Grid de swatches
+        grid = QGridLayout()
+        grid.setSpacing(6)
+        self._swatches = []
+        for i, (c1, c2) in enumerate(PALETA):
+            btn = QPushButton()
+            btn.setFixedSize(34, 34)
+            btn.setCursor(Qt.PointingHandCursor)
+            seleccionado = ([c1, c2] == color_inicial)
+            btn.setStyleSheet(self._estilo_swatch(c1, seleccionado))
+            btn.clicked.connect(lambda _, idx=i: self._seleccionar(idx))
+            grid.addWidget(btn, i // 6, i % 6)
+            self._swatches.append(btn)
+        lay.addLayout(grid)
 
-        # Campo de nombre  # Comentario
-        campo = QLineEdit()  # Crear campo de texto
-        campo.setPlaceholderText(placeholder)  # Texto guía
-        campo.setMaxLength(20)  # Límite de caracteres
-        campo.setStyleSheet(estilo_input())  # Aplicar estilo
-        lay.addWidget(campo)  # Agregar campo al layout
+    def _estilo_swatch(self, c1: str, activo: bool) -> str:
+        borde = "3px solid #FFFFFF" if activo else "3px solid transparent"
+        return f"""
+            QPushButton {{
+                background-color: {c1};
+                border-radius: 6px;
+                border: {borde};
+            }}
+            QPushButton:hover {{ border: 3px solid #FFFFFF; }}
+        """
 
-        lbl_controles = QLabel(f"Controles: {pista}")  # Etiqueta de controles
-        lbl_controles.setFont(QFont("Segoe UI", 9))  # Fuente pequeña
-        lbl_controles.setStyleSheet(
-            f"color: {GRIS}; background: transparent; border: none;"
-        )  # Estilo controles
+    def _seleccionar(self, idx: int):
+        self.color_actual = list(PALETA[idx])
+        for i, btn in enumerate(self._swatches):
+            btn.setStyleSheet(self._estilo_swatch(PALETA[i][0], i == idx))
+        self.preview.setStyleSheet(
+            f"background-color: {PALETA[idx][0]}; border-radius: 6px; border: none;"
+        )
+        self.color_cambiado.emit(self.color_actual)
 
-        lay.addWidget(lbl_controles)  # Agregar etiqueta controles
+    def set_color(self, color: list):
+        """Actualiza el selector programáticamente (para mostrar el color del rival)."""
+        self.color_actual = color
+        try:
+            idx = PALETA.index(tuple(color))
+        except ValueError:
+            idx = -1
+        for i, btn in enumerate(self._swatches):
+            btn.setStyleSheet(self._estilo_swatch(PALETA[i][0], i == idx))
+        self.preview.setStyleSheet(
+            f"background-color: {color[0]}; border-radius: 6px; border: none;"
+        )
 
-        # Selector de color  # Comentario
-        lbl_color = QLabel("Color de serpiente:")  # Etiqueta color
-        lbl_color.setFont(QFont("Segoe UI", 10, QFont.Bold))  # Fuente
-        lbl_color.setStyleSheet(
-            f"color: {BLANCO_CALIDO}; background: transparent; border: none;"
-        )  # Estilo texto
 
-        lay.addWidget(lbl_color)  # Agregar etiqueta
+# ── Pantalla principal de configuración ──────────────────────
+class PantallaConfiguracion(QWidget):
 
-        # Cuadrícula de swatches  # Comentario
-        grid = QGridLayout()  # Crear layout cuadrícula
-        grid.setSpacing(6)  # Espaciado
-        swatches = []  # Lista de botones color
+    def __init__(self, ventana_principal=None):
+        super().__init__(ventana_principal)
+        self.ventana = ventana_principal
 
-        for i, (c1, c2) in enumerate(colores):  # Recorrer colores
-            swatch = QPushButton()  # Crear botón color
-            swatch.setFixedSize(36, 36)  # Tamaño fijo
-            swatch.setCursor(Qt.PointingHandCursor)  # Cursor mano
+        # Estado
+        self._red          = None
+        self._modo         = None      # "anfitrion" | "cliente"
+        self._nombre_propio = ""
+        self._nombre_rival  = ""
+        self._color_propio  = list(PALETA[0])
+        self._color_rival   = list(PALETA[2])
+        self._listo_propio  = False
+        self._listo_rival   = False
 
-            swatch.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {c1};
-                    border-radius: 6px;
-                    border: 3px solid {'#FFFFFF' if i == 0 else 'transparent'};
-                }}
-                QPushButton:hover {{
-                    border: 3px solid #FFFFFF;
-                }}
-            """)  # Estilo del swatch
+        self.setStyleSheet(estilo_ventana())
+        self._construir()
 
-            swatch.setToolTip(f"Color {i+1}")  # Tooltip del color
+    # ── Construcción ──────────────────────────────────────────
 
-            grid.addWidget(swatch, i // 4, i % 4)  # Agregar a cuadrícula
-            swatches.append(swatch)  # Guardar botón
+    def _construir(self):
+        raiz = QVBoxLayout(self)
+        raiz.setContentsMargins(0, 0, 0, 0)
 
-        lay.addLayout(grid)  # Agregar cuadrícula al layout
+        self._stack = QStackedWidget()
+        self._stack.addWidget(self._pagina_entrada())   # 0 — nombre + modo
+        self._stack.addWidget(self._pagina_sala())      # 1 — lobby
 
-        # Preview del color seleccionado  # Comentario
-        preview = QLabel()  # Crear preview
-        preview.setFixedHeight(14)  # Altura fija
+        raiz.addWidget(self._stack)
 
-        preview.setStyleSheet(
-            f"background-color: {colores[0][0]}; border-radius: 6px; border: none;"
-        )  # Mostrar color inicial
+    # ── Página 0: entrada ─────────────────────────────────────
 
-        lay.addWidget(preview)  # Agregar preview
+    def _pagina_entrada(self) -> QWidget:
+        pagina = QWidget()
+        pagina.setStyleSheet("background: transparent;")
+        lay = QVBoxLayout(pagina)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setAlignment(Qt.AlignCenter)
 
-        # Guardar referencias  # Comentario
-        if es_j1:  # Si es jugador 1
-            self.campo_j1 = campo  # Guardar campo jugador 1
-            self._sw1 = swatches  # Guardar swatches jugador 1
-            self._prev1 = preview  # Guardar preview jugador 1
-        else:  # Si es jugador 2
-            self.campo_j2 = campo  # Guardar campo jugador 2
-            self._sw2 = swatches  # Guardar swatches jugador 2
-            self._prev2 = preview  # Guardar preview jugador 2
+        # Tarjeta central
+        tarjeta = QFrame()
+        tarjeta.setFixedWidth(440)
+        tarjeta.setStyleSheet(f"""
+            QFrame {{
+                background-color: {FONDO_MEDIO};
+                border: 2px solid {DORADO};
+                border-radius: 14px;
+            }}
+        """)
+        t_lay = QVBoxLayout(tarjeta)
+        t_lay.setContentsMargins(36, 32, 36, 32)
+        t_lay.setSpacing(20)
 
-        # Conectar swatches  # Comentario
-        for i, sw in enumerate(swatches):  # Recorrer botones color
-            sw.clicked.connect(
-                lambda _, idx=i, n=numero: self._seleccionar_color(idx, n)
-            )  # Conectar selección de color
+        # Título
+        lbl_titulo = QLabel("🐍  SNAKEVERSE")
+        lbl_titulo.setFont(QFont("Segoe UI", 22, QFont.Bold))
+        lbl_titulo.setStyleSheet(f"color: {DORADO}; background: transparent; border: none;")
+        lbl_titulo.setAlignment(Qt.AlignCenter)
+        t_lay.addWidget(lbl_titulo)
 
-        return frame  # Retornar tarjeta completa
+        lbl_sub = QLabel("Nueva partida")
+        lbl_sub.setFont(QFont("Segoe UI", 10))
+        lbl_sub.setStyleSheet(f"color: {GRIS}; background: transparent; border: none;")
+        lbl_sub.setAlignment(Qt.AlignCenter)
+        t_lay.addWidget(lbl_sub)
 
-    def _seleccionar_color(self, idx: int, numero: int):  # Método para seleccionar color
-        """Actualiza el color seleccionado y resalta el swatch elegido."""  # Descripción
+        sep = self._separador(DORADO)
+        t_lay.addWidget(sep)
 
-        colores = COLORES_J1 if numero == 1 else COLORES_J2  # Lista correcta de colores
-        swatches = self._sw1 if numero == 1 else self._sw2  # Lista de botones
-        preview = self._prev1 if numero == 1 else self._prev2  # Preview correspondiente
+        # Campo nombre
+        lbl_n = QLabel("Tu nombre")
+        lbl_n.setFont(QFont("Segoe UI", 10, QFont.Bold))
+        lbl_n.setStyleSheet(f"color: {BLANCO_CALIDO}; background: transparent; border: none;")
+        t_lay.addWidget(lbl_n)
 
-        if numero == 1:  # Si jugador 1
-            self.color_j1 = colores[idx]  # Guardar color seleccionado
-        else:  # Si jugador 2
-            self.color_j2 = colores[idx]  # Guardar color seleccionado
+        self._campo_nombre = QLineEdit()
+        self._campo_nombre.setPlaceholderText("Escribe tu nombre…")
+        self._campo_nombre.setMaxLength(20)
+        self._campo_nombre.setStyleSheet(estilo_input())
+        self._campo_nombre.setMinimumHeight(40)
+        t_lay.addWidget(self._campo_nombre)
 
-        for i, sw in enumerate(swatches):  # Recorrer swatches
-            c1 = colores[i][0]  # Obtener color principal
-            borde = "3px solid #FFFFFF" if i == idx else "3px solid transparent"  # Borde activo
+        # Botones modo
+        lbl_modo = QLabel("¿Cómo vas a jugar?")
+        lbl_modo.setFont(QFont("Segoe UI", 10, QFont.Bold))
+        lbl_modo.setStyleSheet(f"color: {BLANCO_CALIDO}; background: transparent; border: none;")
+        t_lay.addWidget(lbl_modo)
 
-            sw.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {c1};
-                    border-radius: 6px;
-                    border: {borde};
-                }}
-                QPushButton:hover {{
-                    border: 3px solid #FFFFFF;
-                }}
-            """)  # Actualizar estilo visual
+        fila = QHBoxLayout()
+        fila.setSpacing(12)
 
-        preview.setStyleSheet(
-            f"background-color: {colores[idx][0]}; border-radius: 6px; border: none;"
-        )  # Actualizar preview
+        self._btn_anfitrion = QPushButton("🏠  ANFITRIÓN")
+        self._btn_cliente   = QPushButton("🔗  CLIENTE")
 
-    # Tarjeta de red  # Comentario de sección
+        for btn in [self._btn_anfitrion, self._btn_cliente]:
+            btn.setMinimumHeight(46)
+            btn.setFont(QFont("Segoe UI", 11, QFont.Bold))
+            btn.setCursor(Qt.PointingHandCursor)
 
-    def _tarjeta_red(self) -> QFrame:  # Método para crear tarjeta de red
-        frame = QFrame()  # Crear marco
-        frame.setStyleSheet(f"""
+        self._btn_anfitrion.setStyleSheet(self._estilo_modo_btn(VERDE, False))
+        self._btn_cliente.setStyleSheet(self._estilo_modo_btn(CIAN, False))
+
+        self._btn_anfitrion.clicked.connect(lambda: self._ir_anfitrion())
+        self._btn_cliente.clicked.connect(lambda: self._ir_cliente())
+
+        fila.addWidget(self._btn_anfitrion)
+        fila.addWidget(self._btn_cliente)
+        t_lay.addLayout(fila)
+
+        # Mensaje de error
+        self._lbl_error_entrada = QLabel("")
+        self._lbl_error_entrada.setFont(QFont("Segoe UI", 9))
+        self._lbl_error_entrada.setStyleSheet(f"color: {ROJO}; background: transparent; border: none;")
+        self._lbl_error_entrada.setAlignment(Qt.AlignCenter)
+        t_lay.addWidget(self._lbl_error_entrada)
+
+        # Botón volver
+        btn_volver = QPushButton("← Volver al menú")
+        btn_volver.setStyleSheet(estilo_boton_base())
+        btn_volver.setCursor(Qt.PointingHandCursor)
+        btn_volver.clicked.connect(self._volver_menu)
+        t_lay.addWidget(btn_volver)
+
+        lay.addWidget(tarjeta, alignment=Qt.AlignCenter)
+        return pagina
+
+    # ── Página 1: sala / lobby ────────────────────────────────
+
+    def _pagina_sala(self) -> QWidget:
+        pagina = QWidget()
+        pagina.setStyleSheet("background: transparent;")
+        lay = QVBoxLayout(pagina)
+        lay.setContentsMargins(40, 30, 40, 30)
+        lay.setSpacing(20)
+
+        # Título sala
+        self._lbl_titulo_sala = QLabel("SALA DE ESPERA")
+        self._lbl_titulo_sala.setFont(QFont("Segoe UI", 20, QFont.Bold))
+        self._lbl_titulo_sala.setStyleSheet(f"color: {DORADO}; background: transparent;")
+        self._lbl_titulo_sala.setAlignment(Qt.AlignCenter)
+        lay.addWidget(self._lbl_titulo_sala)
+
+        # Panel de conexión (IP para anfitrión / campo IP para cliente)
+        self._panel_conexion = QFrame()
+        self._panel_conexion.setStyleSheet(f"""
             QFrame {{
                 background-color: {FONDO_MEDIO};
                 border: 2px solid {CIAN};
-                border-radius: 8px;
-            }}
-        """)  # Estilo del marco
-
-        self._lay_red = QVBoxLayout(frame)  # NUEVO: Guardar layout para actualizar
-        self._lay_red.setContentsMargins(20, 16, 20, 16)  # Márgenes internos
-        self._lay_red.setSpacing(12)  # Espaciado
-
-        # Título  # Comentario
-        lbl_titulo = QLabel("🌐  MODO DE CONEXIÓN")  # Crear título
-        lbl_titulo.setFont(QFont("Segoe UI", 13, QFont.Bold))  # Fuente
-
-        lbl_titulo.setStyleSheet(
-            f"color: {CIAN}; background: transparent; border: none;"
-        )  # Estilo texto
-
-        self._lay_red.addWidget(lbl_titulo)  # Agregar título
-
-        # Botones de modo  # Comentario
-        fila_modo = QHBoxLayout()  # Layout horizontal
-        fila_modo.setSpacing(10)  # Espaciado
-
-        self.btn_local = QPushButton("🌿  LOCAL")  # Botón local
-        self.btn_anfitrion = QPushButton("🏠  ANFITRIÓN")  # Botón anfitrión
-        self.btn_cliente = QPushButton("🔗  CLIENTE")  # Botón cliente
-
-        for b in [self.btn_local, self.btn_anfitrion, self.btn_cliente]:  # Recorrer botones
-            b.setCheckable(True)  # Activar selección
-            b.setCursor(Qt.PointingHandCursor)  # Cursor mano
-            b.setMinimumHeight(38)  # Altura mínima
-            b.setFont(QFont("Segoe UI", 11, QFont.Bold))  # Fuente botones
-
-        self.btn_local.setChecked(True)  # Marcar modo local
-        self._aplicar_estilo_modo()  # Aplicar estilos
-
-        self.btn_local.clicked.connect(lambda: self._cambiar_modo("local"))  # Conectar local
-        self.btn_anfitrion.clicked.connect(lambda: self._cambiar_modo("anfitrion"))  # Conectar anfitrión
-        self.btn_cliente.clicked.connect(lambda: self._cambiar_modo("cliente"))  # Conectar cliente
-
-        fila_modo.addWidget(self.btn_local)  # Agregar botón local
-        fila_modo.addWidget(self.btn_anfitrion)  # Agregar botón anfitrión
-        fila_modo.addWidget(self.btn_cliente)  # Agregar botón cliente
-
-        self._lay_red.addLayout(fila_modo)  # Agregar fila al layout
-
-        # NUEVO: Crear spacer y label para contenido dinámico
-        self._lay_red.addSpacing(10)
-        self._contenedor_modo = QWidget()  # Widget que contendrá el contenido específico del modo
-        self._lay_contenedor_modo = QVBoxLayout(self._contenedor_modo)
-        self._lay_contenedor_modo.setContentsMargins(0, 0, 0, 0)
-        self._lay_contenedor_modo.setSpacing(0)
-        self._lay_red.addWidget(self._contenedor_modo)
-
-        self._actualizar_ui_red()  # NUEVO: Actualizar contenido inicial
-
-        return frame
-
-    def _actualizar_ui_red(self):
-        """NUEVO: Actualiza el contenido del frame de red según el modo seleccionado."""
-        # Limpiar layout anterior
-        while self._lay_contenedor_modo.count():
-            child = self._lay_contenedor_modo.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
-
-        if self.modo_red == "local":
-            # Para modo local, no mostrar contenido adicional
-            lbl = QLabel("Modo local: sin conexión en red")
-            lbl.setStyleSheet(f"color: {GRIS}; background: transparent;")
-            lbl.setFont(QFont("Segoe UI", 10))
-            lbl.setAlignment(Qt.AlignCenter)
-            self._lay_contenedor_modo.addWidget(lbl)
-
-        elif self.modo_red == "anfitrion":
-            # Modo anfitrión: mostrar IP y botón para iniciar servidor
-            self._crear_ui_anfitrion()
-
-        elif self.modo_red == "cliente":
-            # Modo cliente: mostrar campo de IP y botón de conexión
-            self._crear_ui_cliente()
-
-    def _crear_ui_anfitrion(self):
-        """NUEVO: Crea la UI para modo ANFITRIÓN."""
-        # Obtener IP local
-        ip_local = obtener_ip_local()
-        
-        lbl_info = QLabel("Comparte tu IP con el otro jugador:")
-        lbl_info.setStyleSheet(f"color: {BLANCO_CALIDO}; background: transparent;")
-        lbl_info.setFont(QFont("Segoe UI", 10))
-        lbl_info.setAlignment(Qt.AlignCenter)
-        self._lay_contenedor_modo.addWidget(lbl_info)
-
-        # Mostrar IP en un frame destacado
-        frame_ip = QFrame()
-        frame_ip.setStyleSheet(f"""
-            QFrame {{
-                background-color: rgba(0, 0, 0, 50);
-                border: 2px solid {CIAN};
-                border-radius: 6px;
+                border-radius: 10px;
             }}
         """)
-        lay_ip = QVBoxLayout(frame_ip)
-        lay_ip.setContentsMargins(12, 8, 12, 8)
+        self._lay_conexion = QVBoxLayout(self._panel_conexion)
+        self._lay_conexion.setContentsMargins(20, 16, 20, 16)
+        self._lay_conexion.setSpacing(10)
+        lay.addWidget(self._panel_conexion)
 
-        lbl_ip = QLabel(f"IP: {ip_local}:{PUERTO_RED}")
-        lbl_ip.setStyleSheet(f"color: {DORADO_CLARO}; background: transparent; font-weight: bold;")
-        lbl_ip.setFont(QFont("Consolas", 12))
+        # Fila de jugadores
+        fila_jug = QHBoxLayout()
+        fila_jug.setSpacing(16)
+
+        # — Mi panel —
+        self._panel_yo = QFrame()
+        self._panel_yo.setStyleSheet(f"""
+            QFrame {{
+                background-color: {FONDO_MEDIO};
+                border: 2px solid {VERDE};
+                border-radius: 10px;
+            }}
+        """)
+        yo_lay = QVBoxLayout(self._panel_yo)
+        yo_lay.setContentsMargins(16, 14, 16, 14)
+        yo_lay.setSpacing(10)
+
+        self._lbl_yo_titulo = QLabel("TÚ")
+        self._lbl_yo_titulo.setFont(QFont("Segoe UI", 12, QFont.Bold))
+        self._lbl_yo_titulo.setStyleSheet(f"color: {VERDE}; background: transparent; border: none;")
+        yo_lay.addWidget(self._lbl_yo_titulo)
+
+        self._lbl_yo_nombre = QLabel("")
+        self._lbl_yo_nombre.setFont(QFont("Segoe UI", 14, QFont.Bold))
+        self._lbl_yo_nombre.setStyleSheet(f"color: {BLANCO_CALIDO}; background: transparent; border: none;")
+        yo_lay.addWidget(self._lbl_yo_nombre)
+
+        self._selector_yo = SelectorColor(list(PALETA[0]), "Color de serpiente", VERDE)
+        self._selector_yo.color_cambiado.connect(self._en_cambio_color_propio)
+        yo_lay.addWidget(self._selector_yo)
+
+        self._lbl_yo_estado = QLabel("⏳  Esperando…")
+        self._lbl_yo_estado.setFont(QFont("Segoe UI", 10, QFont.Bold))
+        self._lbl_yo_estado.setStyleSheet(f"color: {GRIS}; background: transparent; border: none;")
+        self._lbl_yo_estado.setAlignment(Qt.AlignCenter)
+        yo_lay.addWidget(self._lbl_yo_estado)
+
+        self._btn_listo = QPushButton("✓  LISTO")
+        self._btn_listo.setFont(QFont("Segoe UI", 11, QFont.Bold))
+        self._btn_listo.setCursor(Qt.PointingHandCursor)
+        self._btn_listo.setMinimumHeight(42)
+        self._btn_listo.setStyleSheet(self._estilo_modo_btn(VERDE, False))
+        self._btn_listo.clicked.connect(self._toggle_listo)
+        yo_lay.addWidget(self._btn_listo)
+
+        fila_jug.addWidget(self._panel_yo)
+
+        # — Separador VS —
+        vs = QLabel("VS")
+        vs.setFont(QFont("Segoe UI", 18, QFont.Bold))
+        vs.setStyleSheet(f"color: {DORADO}; background: transparent;")
+        vs.setAlignment(Qt.AlignCenter)
+        vs.setFixedWidth(40)
+        fila_jug.addWidget(vs)
+
+        # — Panel rival —
+        self._panel_rival = QFrame()
+        self._panel_rival.setStyleSheet(f"""
+            QFrame {{
+                background-color: {FONDO_MEDIO};
+                border: 2px solid {AZUL};
+                border-radius: 10px;
+            }}
+        """)
+        rival_lay = QVBoxLayout(self._panel_rival)
+        rival_lay.setContentsMargins(16, 14, 16, 14)
+        rival_lay.setSpacing(10)
+
+        lbl_rival_titulo = QLabel("RIVAL")
+        lbl_rival_titulo.setFont(QFont("Segoe UI", 12, QFont.Bold))
+        lbl_rival_titulo.setStyleSheet(f"color: {AZUL}; background: transparent; border: none;")
+        rival_lay.addWidget(lbl_rival_titulo)
+
+        self._lbl_rival_nombre = QLabel("Esperando conexión…")
+        self._lbl_rival_nombre.setFont(QFont("Segoe UI", 14, QFont.Bold))
+        self._lbl_rival_nombre.setStyleSheet(f"color: {GRIS}; background: transparent; border: none;")
+        rival_lay.addWidget(self._lbl_rival_nombre)
+
+        self._selector_rival = SelectorColor(list(PALETA[2]), "Color del rival", AZUL)
+        # El rival es de solo lectura — desactivar interacción
+        for sw in self._selector_rival._swatches:
+            sw.setEnabled(False)
+            sw.setCursor(Qt.ArrowCursor)
+        rival_lay.addWidget(self._selector_rival)
+
+        self._lbl_rival_estado = QLabel("⏳  Sin conectar")
+        self._lbl_rival_estado.setFont(QFont("Segoe UI", 10, QFont.Bold))
+        self._lbl_rival_estado.setStyleSheet(f"color: {GRIS}; background: transparent; border: none;")
+        self._lbl_rival_estado.setAlignment(Qt.AlignCenter)
+        rival_lay.addWidget(self._lbl_rival_estado)
+
+        fila_jug.addWidget(self._panel_rival)
+        lay.addLayout(fila_jug)
+
+        # Botón iniciar (solo anfitrión)
+        self._btn_iniciar = QPushButton("▶  INICIAR PARTIDA")
+        self._btn_iniciar.setFont(QFont("Segoe UI", 13, QFont.Bold))
+        self._btn_iniciar.setCursor(Qt.PointingHandCursor)
+        self._btn_iniciar.setMinimumHeight(50)
+        self._btn_iniciar.setStyleSheet(estilo_boton_verde())
+        self._btn_iniciar.setEnabled(False)
+        self._btn_iniciar.clicked.connect(self._iniciar_partida)
+        lay.addWidget(self._btn_iniciar)
+
+        # Botón cancelar
+        btn_cancelar = QPushButton("✕  Cancelar y volver")
+        btn_cancelar.setStyleSheet(estilo_boton_rojo())
+        btn_cancelar.setCursor(Qt.PointingHandCursor)
+        btn_cancelar.clicked.connect(self._cancelar_sala)
+        lay.addWidget(btn_cancelar)
+
+        return pagina
+
+    # ── Helpers de estilo ─────────────────────────────────────
+
+    def _estilo_modo_btn(self, color: str, activo: bool) -> str:
+        bg = f"rgba({self._hex_a_rgb(color)}, 0.15)" if activo else "transparent"
+        return f"""
+            QPushButton {{
+                background-color: {bg};
+                color: {color};
+                border: 2px solid {color};
+                border-radius: 8px;
+                padding: 8px 16px;
+            }}
+            QPushButton:hover {{
+                background-color: rgba({self._hex_a_rgb(color)}, 0.25);
+            }}
+        """
+
+    def _hex_a_rgb(self, hex_color: str) -> str:
+        h = hex_color.lstrip("#")
+        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+        return f"{r},{g},{b}"
+
+    def _separador(self, color: str) -> QFrame:
+        linea = QFrame()
+        linea.setFrameShape(QFrame.HLine)
+        linea.setStyleSheet(f"background-color: {color}; max-height: 1px; border: none;")
+        return linea
+
+    # ── Navegación: entrada → sala ────────────────────────────
+
+    def _validar_nombre(self) -> str | None:
+        nombre = self._campo_nombre.text().strip()
+        if not nombre:
+            self._lbl_error_entrada.setText("Escribe tu nombre para continuar.")
+            return None
+        self._lbl_error_entrada.setText("")
+        return nombre
+
+    def _ir_anfitrion(self):
+        nombre = self._validar_nombre()
+        if not nombre:
+            return
+        self._nombre_propio = nombre
+        self._modo = "anfitrion"
+        self._preparar_sala_anfitrion()
+        self._stack.setCurrentIndex(1)
+
+    def _ir_cliente(self):
+        nombre = self._validar_nombre()
+        if not nombre:
+            return
+        self._nombre_propio = nombre
+        self._modo = "cliente"
+        self._preparar_sala_cliente()
+        self._stack.setCurrentIndex(1)
+
+    # ── Preparación de la sala según modo ────────────────────
+
+    def _limpiar_panel_conexion(self):
+        while self._lay_conexion.count():
+            item = self._lay_conexion.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+    def _preparar_sala_anfitrion(self):
+        self._limpiar_panel_conexion()
+        self._lbl_titulo_sala.setText("🏠  SALA DEL ANFITRIÓN")
+
+        # Mostrar IP
+        ip = _ip_local()
+        lbl_ip_hint = QLabel("Comparte esta IP con tu rival:")
+        lbl_ip_hint.setFont(QFont("Segoe UI", 10))
+        lbl_ip_hint.setStyleSheet(f"color: {GRIS}; background: transparent; border: none;")
+
+        lbl_ip = QLabel(ip)
+        lbl_ip.setFont(QFont("Segoe UI", 22, QFont.Bold))
+        lbl_ip.setStyleSheet(f"color: {CIAN}; background: transparent; border: none;")
         lbl_ip.setAlignment(Qt.AlignCenter)
-        lay_ip.addWidget(lbl_ip)
+        lbl_ip.setTextInteractionFlags(Qt.TextSelectableByMouse)
 
-        self._lay_contenedor_modo.addWidget(frame_ip)
+        self._lbl_estado_conexion = QLabel("⏳  Esperando al cliente…")
+        self._lbl_estado_conexion.setFont(QFont("Segoe UI", 10))
+        self._lbl_estado_conexion.setStyleSheet(f"color: {DORADO}; background: transparent; border: none;")
+        self._lbl_estado_conexion.setAlignment(Qt.AlignCenter)
 
-        # Estado de la sala
-        self._lbl_estado_red = QLabel("⏳  Esperando conexión del otro jugador…")
-        self._lbl_estado_red.setStyleSheet(f"color: {DORADO}; background: transparent;")
-        self._lbl_estado_red.setFont(QFont("Segoe UI", 9))
-        self._lbl_estado_red.setAlignment(Qt.AlignCenter)
-        self._lay_contenedor_modo.addWidget(self._lbl_estado_red)
+        self._lay_conexion.addWidget(lbl_ip_hint)
+        self._lay_conexion.addWidget(lbl_ip)
+        self._lay_conexion.addWidget(self._lbl_estado_conexion)
 
-        # Botón para crear sala
-        self._btn_crear_sala = QPushButton("🚀  CREAR SALA")
-        self._btn_crear_sala.setStyleSheet(estilo_boton_verde())
-        self._btn_crear_sala.setMinimumHeight(40)
-        self._btn_crear_sala.setFont(QFont("Segoe UI", 10, QFont.Bold))
-        self._btn_crear_sala.setCursor(Qt.PointingHandCursor)
-        self._btn_crear_sala.clicked.connect(self._crear_sala)
-        self._lay_contenedor_modo.addWidget(self._btn_crear_sala)
+        # Color inicial para anfitrión = paleta[0] (verde)
+        self._color_propio = list(PALETA[0])
 
-    def _crear_ui_cliente(self):
-        """NUEVO: Crea la UI para modo CLIENTE."""
-        lbl_info = QLabel("Ingresa la IP del anfitrión:")
-        lbl_info.setStyleSheet(f"color: {BLANCO_CALIDO}; background: transparent;")
-        lbl_info.setFont(QFont("Segoe UI", 10))
-        lbl_info.setAlignment(Qt.AlignCenter)
-        self._lay_contenedor_modo.addWidget(lbl_info)
+        # El botón iniciar solo visible para anfitrión
+        self._btn_iniciar.show()
 
-        # Campo de IP
-        self._campo_ip_cliente = QLineEdit()
-        self._campo_ip_cliente.setPlaceholderText("Ej: 192.168.1.100")
-        self._campo_ip_cliente.setStyleSheet(estilo_input())
-        self._campo_ip_cliente.setMinimumHeight(36)
-        self._lay_contenedor_modo.addWidget(self._campo_ip_cliente)
+        # Actualizar panel "yo"
+        self._lbl_yo_titulo.setText("TÚ  (Jugador 1)")
+        self._lbl_yo_nombre.setText(self._nombre_propio)
+        self._lbl_rival_nombre.setText("Esperando conexión…")
+        self._lbl_rival_estado.setText("⏳  Sin conectar")
+        self._lbl_yo_estado.setText("⏳  No listo")
+        self._btn_listo.setEnabled(False)
+        self._btn_iniciar.setEnabled(False)
 
-        # Estado de conexión
-        self._lbl_estado_red = QLabel("Listo para conectar")
-        self._lbl_estado_red.setStyleSheet(f"color: {GRIS}; background: transparent;")
-        self._lbl_estado_red.setFont(QFont("Segoe UI", 9))
-        self._lbl_estado_red.setAlignment(Qt.AlignCenter)
-        self._lay_contenedor_modo.addWidget(self._lbl_estado_red)
+        # Iniciar escucha
+        self._red = LobbyRed("anfitrion")
+        self._red.señales.cliente_conectado.connect(self._en_cliente_conectado)
+        self._red.señales.color_rival.connect(self._en_color_rival)
+        self._red.señales.rival_listo.connect(self._en_rival_listo)
+        self._red.señales.error.connect(self._en_error_red)
+        self._red.escuchar(self._nombre_propio, self._color_propio)
 
-        # Botón de conexión
-        self._btn_unirse = QPushButton("🔗  UNIRSE A SALA")
-        self._btn_unirse.setStyleSheet(estilo_boton_azul())
-        self._btn_unirse.setMinimumHeight(40)
-        self._btn_unirse.setFont(QFont("Segoe UI", 10, QFont.Bold))
-        self._btn_unirse.setCursor(Qt.PointingHandCursor)
-        self._btn_unirse.clicked.connect(self._unirse_sala)
-        self._lay_contenedor_modo.addWidget(self._btn_unirse)
+    def _preparar_sala_cliente(self):
+        self._limpiar_panel_conexion()
+        self._lbl_titulo_sala.setText("🔗  UNIRSE A SALA")
 
-    def _crear_sala(self):
-        """NUEVO: Crea la sala de anfitrión."""
-        self._btn_crear_sala.setEnabled(False)
-        self._lbl_estado_red.setText("⏳  Esperando conexión…")
-        self._lbl_estado_red.setStyleSheet(f"color: {DORADO}; background: transparent;")
-        
-        # Iniciar servidor en hilo separado
-        threading.Thread(
-            target=self._hilo_servidor,
-            daemon=True,
-        ).start()
+        lbl_hint = QLabel("IP del anfitrión:")
+        lbl_hint.setFont(QFont("Segoe UI", 10, QFont.Bold))
+        lbl_hint.setStyleSheet(f"color: {BLANCO_CALIDO}; background: transparent; border: none;")
 
-    def _hilo_servidor(self):  # Método que ejecuta el servidor en segundo plano
-        """Hilo: escucha conexiones entrantes."""  # Explicación del método
-        try:  # Intenta ejecutar el servidor
-            srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # Crea un socket TCP/IP
-            srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # Permite reutilizar el puerto
-            srv.bind(("", PUERTO_RED))  # Asocia el servidor al puerto definido
-            srv.listen(1)  # Escucha una conexión entrante
-            srv.settimeout(120)  # Tiempo máximo de espera de 120 segundos
-            self._socket_srv = srv  # Guarda referencia del servidor
-            conn, addr = srv.accept()  # Espera la conexión del cliente
-            conn.close()  # Cierra conexión con el cliente
-            srv.close()  # Cierra el servidor
-            self._socket_srv = None  # Limpia la referencia del servidor
-            # Notificar a la UI (desde hilo → señal Qt)  # Comentario explicativo
-            self._señales_red.conectado.emit()  # Emite señal de conexión exitosa
-        except Exception as e:  # Captura errores
-            self._señales_red.error.emit(str(e))  # Envía el mensaje de error
+        self._campo_ip = QLineEdit()
+        self._campo_ip.setPlaceholderText("192.168.1.X")
+        self._campo_ip.setStyleSheet(estilo_input())
+        self._campo_ip.setMinimumHeight(38)
 
-    def _unirse_sala(self):  # Método para conectarse como cliente
-        """Modo CLIENTE: conecta al servidor del anfitrión."""  # Explicación del método
-        ip = getattr(self, "_campo_ip_cliente", None)  # Obtiene el campo de texto de IP
-        ip_texto = ip.text().strip() if ip else ""  # Obtiene y limpia la IP escrita
-        if not ip_texto:  # Verifica si no se escribió IP
-            self._lbl_estado_red.setText(" Escribe la IP del anfitrión primero.")  # Muestra mensaje de error
-            self._lbl_estado_red.setStyleSheet(  # Cambia estilo del mensaje
-                f"color: {ROJO}; background: transparent; border: none;"  # Color rojo de error
+        self._btn_conectar = QPushButton("🔗  Conectar")
+        self._btn_conectar.setFont(QFont("Segoe UI", 11, QFont.Bold))
+        self._btn_conectar.setCursor(Qt.PointingHandCursor)
+        self._btn_conectar.setMinimumHeight(40)
+        self._btn_conectar.setStyleSheet(self._estilo_modo_btn(CIAN, True))
+        self._btn_conectar.clicked.connect(self._conectar_como_cliente)
+
+        self._lbl_estado_conexion = QLabel("")
+        self._lbl_estado_conexion.setFont(QFont("Segoe UI", 10))
+        self._lbl_estado_conexion.setStyleSheet(f"color: {DORADO}; background: transparent; border: none;")
+        self._lbl_estado_conexion.setAlignment(Qt.AlignCenter)
+
+        self._lay_conexion.addWidget(lbl_hint)
+        fila_ip = QHBoxLayout()
+        fila_ip.setSpacing(10)
+        fila_ip.addWidget(self._campo_ip)
+        fila_ip.addWidget(self._btn_conectar)
+        self._lay_conexion.addLayout(fila_ip)
+        self._lay_conexion.addWidget(self._lbl_estado_conexion)
+
+        # Color inicial para cliente = paleta[2] (azul)
+        self._color_propio = list(PALETA[2])
+
+        # El botón iniciar oculto para cliente
+        self._btn_iniciar.hide()
+
+        # Actualizar panel "yo"
+        self._lbl_yo_titulo.setText("TÚ  (Jugador 2)")
+        self._lbl_yo_nombre.setText(self._nombre_propio)
+        self._lbl_rival_nombre.setText("Sin conectar")
+        self._lbl_rival_estado.setText("⏳  Sin conectar")
+        self._lbl_yo_estado.setText("⏳  No listo")
+        self._btn_listo.setEnabled(False)
+
+    # ── Acciones del lobby ────────────────────────────────────
+
+    def _conectar_como_cliente(self):
+        ip = self._campo_ip.text().strip() if hasattr(self, "_campo_ip") else ""
+        if not ip:
+            self._lbl_estado_conexion.setText("Escribe la IP del anfitrión.")
+            self._lbl_estado_conexion.setStyleSheet(
+                f"color: {ROJO}; background: transparent; border: none;"
             )
-            return  # Sale del método
+            return
 
-        self._btn_unirse.setEnabled(False)  # Desactiva el botón mientras conecta
-        self._lbl_estado_red.setText(f"⏳  Conectando a {ip_texto}:{PUERTO_RED}…")  # Mensaje de conexión
-        self._lbl_estado_red.setStyleSheet(  # Cambia estilo del mensaje
-            f"color: {DORADO}; background: transparent; border: none;"  # Color dorado de espera
+        self._btn_conectar.setEnabled(False)
+        self._lbl_estado_conexion.setText(f"⏳  Conectando a {ip}…")
+        self._lbl_estado_conexion.setStyleSheet(
+            f"color: {DORADO}; background: transparent; border: none;"
         )
 
-        self._ip_anfitrion = ip_texto  # Guarda la IP del anfitrión
+        self._red = LobbyRed("cliente", ip)
+        self._red.señales.conectado_ok.connect(self._en_conectado_ok)
+        self._red.señales.color_rival.connect(self._en_color_rival)
+        self._red.señales.rival_listo.connect(self._en_rival_listo)
+        self._red.señales.iniciar_partida.connect(self._en_iniciar_partida)
+        self._red.señales.error.connect(self._en_error_red)
+        self._red.conectar(ip, self._nombre_propio, self._color_propio)
 
-        threading.Thread(  # Crea un hilo secundario
-            target=self._hilo_cliente,  # Método que ejecutará el hilo
-            args=(ip_texto,),  # Argumentos enviados al hilo
-            daemon=True,  # El hilo se cierra al terminar el programa
-        ).start()  # Inicia el hilo
+    def _toggle_listo(self):
+        self._listo_propio = not self._listo_propio
+        if self._listo_propio:
+            self._btn_listo.setText("✓  LISTO  (click para cancelar)")
+            self._btn_listo.setStyleSheet(self._estilo_modo_btn(VERDE, True))
+            self._lbl_yo_estado.setText("✅  ¡Listo!")
+            self._lbl_yo_estado.setStyleSheet(
+                f"color: {VERDE}; background: transparent; border: none;"
+            )
+        else:
+            self._btn_listo.setText("✓  LISTO")
+            self._btn_listo.setStyleSheet(self._estilo_modo_btn(VERDE, False))
+            self._lbl_yo_estado.setText("⏳  No listo")
+            self._lbl_yo_estado.setStyleSheet(
+                f"color: {GRIS}; background: transparent; border: none;"
+            )
+        if self._red:
+            self._red.enviar_listo(self._listo_propio)
+        self._actualizar_btn_iniciar()
 
-    def _hilo_cliente(self, ip: str):  # Método que intenta conectar al servidor
-        """Hilo: intenta conectar al servidor."""  # Explicación del método
-        try:  # Intenta realizar la conexión
-            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # Crea socket TCP/IP
-            s.settimeout(15)  # Tiempo máximo de espera
-            s.connect((ip, PUERTO_RED))  # Conecta al servidor usando IP y puerto
-            s.close()  # Cierra la conexión
-            self._señales_red.conectado.emit()  # Emite señal de conexión exitosa
-        except Exception as e:  # Captura errores
-            self._señales_red.error.emit(str(e))  # Envía mensaje de error
+    def _en_cambio_color_propio(self, color: list):
+        self._color_propio = color
+        if self._red:
+            self._red.enviar_color(color)
 
-    def _en_conectado(self):  # Método ejecutado al conectarse correctamente
-        """Llamado cuando la conexión TCP se establece (ambos modos)."""  # Explicación del método
-        self._lbl_estado_red.setText("✅  ¡Conexión establecida! Iniciando juego…")  # Muestra mensaje de éxito
-        self._lbl_estado_red.setStyleSheet(  # Cambia estilo del mensaje
-            f"color: {VERDE}; background: transparent; border: none;"  # Color verde de éxito
-        )
-        QTimer.singleShot(800, self._iniciar)  # Espera 800 ms y ejecuta iniciar juego
+    def _actualizar_btn_iniciar(self):
+        """El botón iniciar se activa solo cuando ambos están listos (solo anfitrión)."""
+        ambos_listos = self._listo_propio and self._listo_rival and bool(self._nombre_rival)
+        self._btn_iniciar.setEnabled(ambos_listos)
 
-    def _en_error_red(self, mensaje: str):  # Método ejecutado cuando ocurre un error
-        """Muestra el error de conexión en la UI."""  # Explicación del método
-        self._lbl_estado_red.setText(f"❌  Error: {mensaje}")  # Muestra mensaje de error
-        self._lbl_estado_red.setStyleSheet(  # Cambia estilo del mensaje
-            f"color: {ROJO}; background: transparent; border: none;"  # Color rojo de error
-        )
+    def _iniciar_partida(self):
+        """Solo el anfitrión. Envía la config y lanza el juego."""
+        if not self._red:
+            return
+        # Anfitrión = J1, cliente = J2
+        config = {
+            "nombre_j1": self._nombre_propio,
+            "nombre_j2": self._nombre_rival,
+            "color_j1":  self._color_propio,
+            "color_j2":  self._color_rival,
+            "modo_red":  "anfitrion",
+        }
+        self._red.enviar_iniciar(config)
+        self._lanzar_juego(config)
 
-        # Rehabilitar botones  # Comentario explicativo
-        btn = getattr(self, "_btn_crear_sala", None) or getattr(self, "_btn_unirse", None)  # Obtiene botón disponible
+    def _lanzar_juego(self, config: dict):
+        """Navega a PantallaJuego pasando el socket ya establecido."""
+        from pantalla.juego import PantallaJuego
+        musica.pausar()
 
-        if btn:  # Verifica si existe el botón
-            btn.setEnabled(True)  # Reactiva el botón
+        # Pasar el socket del lobby al juego para reutilizarlo
+        sock = self._red._sock
+        self._red._activo = False  # detener el loop del lobby sin cerrar el socket
 
-    #  NAVEGACIÓN  # Sección de navegación entre pantallas
-
-    def _volver(self):  # Método para volver al menú principal
-        musica.iniciar()  # Reproduce música del menú
-        from pantalla.inicio import PantallaInicio  # Importa la pantalla inicial
-        self.ventana.setCentralWidget(PantallaInicio(self.ventana))  # Cambia a la pantalla de inicio
-
-    def _iniciar(self):  # Método que inicia el juego
-        nombre_j1 = self.campo_j1.text().strip() or "Jugador 1"  # Obtiene nombre del jugador 1
-        nombre_j2 = self.campo_j2.text().strip() or "Jugador 2"  # Obtiene nombre del jugador 2
-        ip_red    = ""  # Variable para guardar la IP de red
-
-        if self.modo_red == "cliente":  # Verifica si el modo es cliente
-            ip_red = getattr(self, "_ip_anfitrion", "")  # Obtiene IP del anfitrión
-
-        from pantalla.juego import PantallaJuego  # Importa la pantalla del juego
-
-        self.ventana.setCentralWidget(  # Cambia la pantalla actual
-            PantallaJuego(  # Crea la pantalla del juego
-                self.ventana,  # Envía la ventana principal
-                nombre_j1  = nombre_j1,  # Envía nombre del jugador 1
-                nombre_j2  = nombre_j2,  # Envía nombre del jugador 2
-                ip_red     = ip_red,  # Envía IP de red
-                modo_red   = self.modo_red,  # Envía modo de red
-                color_j1   = self.color_j1,  # Envía color del jugador 1
-                color_j2   = self.color_j2,  # Envía color del jugador 2
+        self.ventana.setCentralWidget(
+            PantallaJuego(
+                self.ventana,
+                nombre_j1 = config["nombre_j1"],
+                nombre_j2 = config["nombre_j2"],
+                color_j1  = tuple(config["color_j1"]),
+                color_j2  = tuple(config["color_j2"]),
+                modo_red  = config.get("modo_red", "local"),
+                sock_existente = sock,
             )
         )
+
+    # ── Slots de señales de red ───────────────────────────────
+
+    def _en_cliente_conectado(self, nombre: str):
+        """Anfitrión: el cliente se conectó."""
+        self._nombre_rival = nombre
+        self._lbl_rival_nombre.setText(nombre)
+        self._lbl_rival_nombre.setStyleSheet(
+            f"color: {BLANCO_CALIDO}; background: transparent; border: none;"
+        )
+        self._lbl_rival_estado.setText("⏳  No listo")
+        self._lbl_rival_estado.setStyleSheet(
+            f"color: {GRIS}; background: transparent; border: none;"
+        )
+        self._lbl_estado_conexion.setText(f"✅  {nombre} conectado")
+        self._lbl_estado_conexion.setStyleSheet(
+            f"color: {VERDE}; background: transparent; border: none;"
+        )
+        self._btn_listo.setEnabled(True)
+        self._actualizar_btn_iniciar()
+
+    def _en_conectado_ok(self, nombre_anfitrion: str):
+        """Cliente: conexión exitosa al anfitrión."""
+        self._nombre_rival = nombre_anfitrion
+        self._lbl_rival_nombre.setText(nombre_anfitrion)
+        self._lbl_rival_nombre.setStyleSheet(
+            f"color: {BLANCO_CALIDO}; background: transparent; border: none;"
+        )
+        self._lbl_rival_estado.setText("⏳  No listo")
+        self._lbl_estado_conexion.setText(f"✅  Conectado a {nombre_anfitrion}")
+        self._lbl_estado_conexion.setStyleSheet(
+            f"color: {VERDE}; background: transparent; border: none;"
+        )
+        self._btn_listo.setEnabled(True)
+
+    def _en_color_rival(self, color: list):
+        self._color_rival = color
+        self._selector_rival.set_color(color)
+
+    def _en_rival_listo(self, valor: bool):
+        self._listo_rival = valor
+        if valor:
+            self._lbl_rival_estado.setText("✅  ¡Listo!")
+            self._lbl_rival_estado.setStyleSheet(
+                f"color: {VERDE}; background: transparent; border: none;"
+            )
+        else:
+            self._lbl_rival_estado.setText("⏳  No listo")
+            self._lbl_rival_estado.setStyleSheet(
+                f"color: {GRIS}; background: transparent; border: none;"
+            )
+        self._actualizar_btn_iniciar()
+
+    def _en_iniciar_partida(self, config: dict):
+        """Cliente recibe la orden de iniciar del anfitrión."""
+        config["modo_red"] = "cliente"
+        self._lanzar_juego(config)
+
+    def _en_error_red(self, mensaje: str):
+        if hasattr(self, "_lbl_estado_conexion"):
+            self._lbl_estado_conexion.setText(f"❌  {mensaje}")
+            self._lbl_estado_conexion.setStyleSheet(
+                f"color: {ROJO}; background: transparent; border: none;"
+            )
+        if hasattr(self, "_btn_conectar"):
+            self._btn_conectar.setEnabled(True)
+
+    # ── Cancelar / volver ─────────────────────────────────────
+
+    def _cancelar_sala(self):
+        if self._red:
+            self._red.cancelar()
+            self._red = None
+        self._listo_propio = False
+        self._listo_rival  = False
+        self._nombre_rival = ""
+        self._stack.setCurrentIndex(0)
+
+    def _volver_menu(self):
+        from pantalla.inicio import PantallaInicio
+        musica.iniciar()
+        self.ventana.setCentralWidget(PantallaInicio(self.ventana))
