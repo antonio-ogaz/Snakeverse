@@ -126,13 +126,14 @@ class PantallaConfiguracion(QWidget):  # Clase principal de configuración
         self.btn_anfitrion.setChecked(modo == "anfitrion")
         self.btn_cliente.setChecked(modo == "cliente")
         self._aplicar_estilo_modo()
+        self._actualizar_ui_red()  # NUEVO: Actualizar UI según el modo
 
     # interfaz  # Comentario de sección
 
     def _construir_interfaz(self):  # Método para crear interfaz
         # Scroll area para pantallas pequeñas  # Comentario
         layout_raiz = QVBoxLayout(self)  # Layout principal vertical
-        layout_raiz.setContentsMargins(0, 0, 0, 0)  # Márgenes en cero
+        layout_raiz.setContentsMargins(0, 0, 0, 0)  # M��rgenes en cero
         layout_raiz.setSpacing(0)  # Espaciado cero
 
         # Contenido scrollable  # Comentario
@@ -170,7 +171,8 @@ class PantallaConfiguracion(QWidget):  # Clase principal de configuración
         layout.addSpacing(16)  # Espacio
 
         # Configuración de red  # Comentario
-        layout.addWidget(self._tarjeta_red())  # Agregar tarjeta red
+        self._frame_red = self._tarjeta_red()  # NUEVO: Guardar frame para actualizar
+        layout.addWidget(self._frame_red)  # Agregar tarjeta red
         layout.addSpacing(20)  # Espacio
 
         # Botones inferiores  # Comentario
@@ -356,9 +358,9 @@ class PantallaConfiguracion(QWidget):  # Clase principal de configuración
             }}
         """)  # Estilo del marco
 
-        lay = QVBoxLayout(frame)  # Layout vertical
-        lay.setContentsMargins(20, 16, 20, 16)  # Márgenes internos
-        lay.setSpacing(12)  # Espaciado
+        self._lay_red = QVBoxLayout(frame)  # NUEVO: Guardar layout para actualizar
+        self._lay_red.setContentsMargins(20, 16, 20, 16)  # Márgenes internos
+        self._lay_red.setSpacing(12)  # Espaciado
 
         # Título  # Comentario
         lbl_titulo = QLabel("🌐  MODO DE CONEXIÓN")  # Crear título
@@ -368,7 +370,7 @@ class PantallaConfiguracion(QWidget):  # Clase principal de configuración
             f"color: {CIAN}; background: transparent; border: none;"
         )  # Estilo texto
 
-        lay.addWidget(lbl_titulo)  # Agregar título
+        self._lay_red.addWidget(lbl_titulo)  # Agregar título
 
         # Botones de modo  # Comentario
         fila_modo = QHBoxLayout()  # Layout horizontal
@@ -395,9 +397,133 @@ class PantallaConfiguracion(QWidget):  # Clase principal de configuración
         fila_modo.addWidget(self.btn_anfitrion)  # Agregar botón anfitrión
         fila_modo.addWidget(self.btn_cliente)  # Agregar botón cliente
 
-        lay.addLayout(fila_modo)  # Agregar fila al layout
+        self._lay_red.addLayout(fila_modo)  # Agregar fila al layout
+
+        # NUEVO: Crear spacer y label para contenido dinámico
+        self._lay_red.addSpacing(10)
+        self._contenedor_modo = QWidget()  # Widget que contendrá el contenido específico del modo
+        self._lay_contenedor_modo = QVBoxLayout(self._contenedor_modo)
+        self._lay_contenedor_modo.setContentsMargins(0, 0, 0, 0)
+        self._lay_contenedor_modo.setSpacing(0)
+        self._lay_red.addWidget(self._contenedor_modo)
+
+        self._actualizar_ui_red()  # NUEVO: Actualizar contenido inicial
 
         return frame
+
+    def _actualizar_ui_red(self):
+        """NUEVO: Actualiza el contenido del frame de red según el modo seleccionado."""
+        # Limpiar layout anterior
+        while self._lay_contenedor_modo.count():
+            child = self._lay_contenedor_modo.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
+
+        if self.modo_red == "local":
+            # Para modo local, no mostrar contenido adicional
+            lbl = QLabel("Modo local: sin conexión en red")
+            lbl.setStyleSheet(f"color: {GRIS}; background: transparent;")
+            lbl.setFont(QFont("Segoe UI", 10))
+            lbl.setAlignment(Qt.AlignCenter)
+            self._lay_contenedor_modo.addWidget(lbl)
+
+        elif self.modo_red == "anfitrion":
+            # Modo anfitrión: mostrar IP y botón para iniciar servidor
+            self._crear_ui_anfitrion()
+
+        elif self.modo_red == "cliente":
+            # Modo cliente: mostrar campo de IP y botón de conexión
+            self._crear_ui_cliente()
+
+    def _crear_ui_anfitrion(self):
+        """NUEVO: Crea la UI para modo ANFITRIÓN."""
+        # Obtener IP local
+        ip_local = obtener_ip_local()
+        
+        lbl_info = QLabel("Comparte tu IP con el otro jugador:")
+        lbl_info.setStyleSheet(f"color: {BLANCO_CALIDO}; background: transparent;")
+        lbl_info.setFont(QFont("Segoe UI", 10))
+        lbl_info.setAlignment(Qt.AlignCenter)
+        self._lay_contenedor_modo.addWidget(lbl_info)
+
+        # Mostrar IP en un frame destacado
+        frame_ip = QFrame()
+        frame_ip.setStyleSheet(f"""
+            QFrame {{
+                background-color: rgba(0, 0, 0, 50);
+                border: 2px solid {CIAN};
+                border-radius: 6px;
+            }}
+        """)
+        lay_ip = QVBoxLayout(frame_ip)
+        lay_ip.setContentsMargins(12, 8, 12, 8)
+
+        lbl_ip = QLabel(f"IP: {ip_local}:{PUERTO_RED}")
+        lbl_ip.setStyleSheet(f"color: {DORADO_CLARO}; background: transparent; font-weight: bold;")
+        lbl_ip.setFont(QFont("Consolas", 12))
+        lbl_ip.setAlignment(Qt.AlignCenter)
+        lay_ip.addWidget(lbl_ip)
+
+        self._lay_contenedor_modo.addWidget(frame_ip)
+
+        # Estado de la sala
+        self._lbl_estado_red = QLabel("⏳  Esperando conexión del otro jugador…")
+        self._lbl_estado_red.setStyleSheet(f"color: {DORADO}; background: transparent;")
+        self._lbl_estado_red.setFont(QFont("Segoe UI", 9))
+        self._lbl_estado_red.setAlignment(Qt.AlignCenter)
+        self._lay_contenedor_modo.addWidget(self._lbl_estado_red)
+
+        # Botón para crear sala
+        self._btn_crear_sala = QPushButton("🚀  CREAR SALA")
+        self._btn_crear_sala.setStyleSheet(estilo_boton_verde())
+        self._btn_crear_sala.setMinimumHeight(40)
+        self._btn_crear_sala.setFont(QFont("Segoe UI", 10, QFont.Bold))
+        self._btn_crear_sala.setCursor(Qt.PointingHandCursor)
+        self._btn_crear_sala.clicked.connect(self._crear_sala)
+        self._lay_contenedor_modo.addWidget(self._btn_crear_sala)
+
+    def _crear_ui_cliente(self):
+        """NUEVO: Crea la UI para modo CLIENTE."""
+        lbl_info = QLabel("Ingresa la IP del anfitrión:")
+        lbl_info.setStyleSheet(f"color: {BLANCO_CALIDO}; background: transparent;")
+        lbl_info.setFont(QFont("Segoe UI", 10))
+        lbl_info.setAlignment(Qt.AlignCenter)
+        self._lay_contenedor_modo.addWidget(lbl_info)
+
+        # Campo de IP
+        self._campo_ip_cliente = QLineEdit()
+        self._campo_ip_cliente.setPlaceholderText("Ej: 192.168.1.100")
+        self._campo_ip_cliente.setStyleSheet(estilo_input())
+        self._campo_ip_cliente.setMinimumHeight(36)
+        self._lay_contenedor_modo.addWidget(self._campo_ip_cliente)
+
+        # Estado de conexión
+        self._lbl_estado_red = QLabel("Listo para conectar")
+        self._lbl_estado_red.setStyleSheet(f"color: {GRIS}; background: transparent;")
+        self._lbl_estado_red.setFont(QFont("Segoe UI", 9))
+        self._lbl_estado_red.setAlignment(Qt.AlignCenter)
+        self._lay_contenedor_modo.addWidget(self._lbl_estado_red)
+
+        # Botón de conexión
+        self._btn_unirse = QPushButton("🔗  UNIRSE A SALA")
+        self._btn_unirse.setStyleSheet(estilo_boton_azul())
+        self._btn_unirse.setMinimumHeight(40)
+        self._btn_unirse.setFont(QFont("Segoe UI", 10, QFont.Bold))
+        self._btn_unirse.setCursor(Qt.PointingHandCursor)
+        self._btn_unirse.clicked.connect(self._unirse_sala)
+        self._lay_contenedor_modo.addWidget(self._btn_unirse)
+
+    def _crear_sala(self):
+        """NUEVO: Crea la sala de anfitrión."""
+        self._btn_crear_sala.setEnabled(False)
+        self._lbl_estado_red.setText("⏳  Esperando conexión…")
+        self._lbl_estado_red.setStyleSheet(f"color: {DORADO}; background: transparent;")
+        
+        # Iniciar servidor en hilo separado
+        threading.Thread(
+            target=self._hilo_servidor,
+            daemon=True,
+        ).start()
 
     def _hilo_servidor(self):  # Método que ejecuta el servidor en segundo plano
         """Hilo: escucha conexiones entrantes."""  # Explicación del método
@@ -501,4 +627,4 @@ class PantallaConfiguracion(QWidget):  # Clase principal de configuración
                 color_j1   = self.color_j1,  # Envía color del jugador 1
                 color_j2   = self.color_j2,  # Envía color del jugador 2
             )
-        ) 
+        )
