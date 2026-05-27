@@ -179,11 +179,7 @@ class Serpiente:
 
     def sacar_powerup(self) -> str | None:
 
-
-
-
-
-
+      
         """
         Extrae el power-up del inventario para activarlo.
         Retorna el tipo (str) o None si el inventario está vacío.
@@ -193,7 +189,6 @@ class Serpiente:
             self.pu_guardado = None
             return tipo
         return None
-
 
     def activar_powerup(self, tipo: str, rival: "Serpiente"):
         """
@@ -257,12 +252,6 @@ class Serpiente:
     # ── Serialización para envío por red ─────────────────────
 
     def serializar(self) -> dict:
-
-
-
-
-
-
         return {
             "cuerpo": self.cuerpo,
             "direccion": list(self.direccion),
@@ -321,21 +310,7 @@ class EstadoJuego:
         self.serpientes = [
             Serpiente(6, fila_centro, (1, 0), self.colores_j1, self.nombres[0]),
             Serpiente(COLUMNAS - 7, fila_centro, (-1, 0), self.colores_j2, self.nombres[1]),
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+          
         ]
         self.comidas = []  # lista de (col, fila)
         self.venenos = []  # lista de (col, fila)
@@ -420,19 +395,6 @@ class EstadoJuego:
 
     def tick(self):
 
-
-
-
-
-
-
-
-
-
-
-
-
-
         """
         Ejecuta un paso de la lógica del juego.
         Retorna:
@@ -448,7 +410,6 @@ class EstadoJuego:
         for idx in range(2):
             if self.serpientes[idx].viva:
                 self._mover(idx)
-
 
 
         # Segundo movimiento para serpientes con Turbo activo
@@ -526,11 +487,6 @@ class EstadoJuego:
         self._procesar_celda(serpiente, col, fila)
 
     def _mover_turbo(self, idx: int):
-
-
-
-
-
         """
         Segundo paso de movimiento para serpientes con Turbo.
         No aplica colisiones fatales — si choca simplemente
@@ -541,8 +497,6 @@ class EstadoJuego:
 
         # Guardar posición antes de mover
         pos_anterior = serpiente.cuerpo[0]
-
-
 
         serpiente.avanzar()
         col, fila = serpiente.cabeza()
@@ -599,15 +553,6 @@ class EstadoJuego:
         return False
 
     # Condición de fin de ronda
-
-
-
-
-
-
-
-
-
 
     def _revisar_fin_ronda(self):
 
@@ -755,7 +700,6 @@ class CanvasJuego(QWidget):
         )
 
     # Dibujo del fondo
-
 
 
     def _dibujar_fondo(self, p, celda, ox, oy):
@@ -1184,11 +1128,7 @@ class PantallaJuego(QWidget):
         self.setStyleSheet(f"background-color: {FONDO_OSCURO};")
         self._construir_interfaz()
 
-
-
     # Construcción de la interfaz
-
-
 
     def _construir_interfaz(self):
         raiz = QVBoxLayout(self)
