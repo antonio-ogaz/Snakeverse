@@ -497,10 +497,6 @@ class ConexionRed:
                 self.señales.tecla_recibida.emit(msg["codigo"])
             elif tipo == "nombre":
                 self.señales.nombre_recibido.emit(msg["nombre"])
-                # Enviar estado inicial como handshake de vuelta al cliente.
-                # Esto requiere una referencia al estado del juego, lo cual es un acoplamiento fuerte.
-                # Una señal podría resolverlo, pero la solución más simple es que
-                # PantallaJuego fuerce un envío después de procesar 'nombre_recibido'.
 
     def _hilo_recibir_estado(self):
         """Loop en el cliente: lee estados enviados por el anfitrión."""
@@ -899,27 +895,27 @@ class PantallaJuego(QWidget):
         self._timer_espera_red.start(200)
 
     def _iniciar_red_con_socket(self, sock):
-        """Reutiliza el socket ya conectado del lobby."""
+        """Reutiliza el socket ya conectado del lobby — no necesita reconectar."""
         self._red = ConexionRed(self.modo_red, nombre_cliente=self.nombre_j2, sock_existente=sock)
         self._red.señales.estado_recibido.connect(self._en_estado_recibido)
         self._red.señales.tecla_recibida.connect(self._en_tecla_recibida)
         self._red.señales.nombre_recibido.connect(self._en_nombre_recibido)
         self._red.señales.desconectado.connect(self._en_desconexion)
 
-        # Activar la conexión
+        # Activar la conexión antes de arrancar los hilos
         self._red._activo = True
 
-        if self.modo_red == "cliente":
+        # Arrancar los hilos de lectura directamente
+        if self.modo_red == "anfitrion":
+            threading.Thread(target=self._red._hilo_recibir_teclas, daemon=True).start()
+        else:
+            # El cliente envía su nombre al anfitrión antes de empezar a escuchar
             _enviar_mensaje(sock, {"tipo": "nombre", "nombre": self.nombre_j2})
             threading.Thread(target=self._red._hilo_recibir_estado, daemon=True).start()
-            # Dar foco al canvas inmediatamente
-            self.canvas.setFocus()
-        elif self.modo_red == "anfitrion":
-            threading.Thread(target=self._red._hilo_recibir_teclas, daemon=True).start()
-            # El anfitrión puede iniciar su secuencia de overlay y juego como antes.
-            self._conectado = True
-            self._mostrar_overlay(f"RONDA {self.estado.numero_ronda}", "¡Prepárense!", DORADO)
-            QTimer.singleShot(1800, self._iniciar_ronda)
+
+        self._conectado = True
+        self._mostrar_overlay(f"RONDA {self.estado.numero_ronda}", "¡Prepárense!", DORADO)
+        QTimer.singleShot(1800, self._iniciar_ronda)
 
     def _verificar_conexion(self):
         if self._red and self._red._activo:
@@ -934,10 +930,6 @@ class PantallaJuego(QWidget):
         self.estado.cargar_desde_red(datos)
         self.canvas.update()
         self._actualizar_hud()
-
-        # Asegurar que el canvas tenga el foco para recibir teclas
-        self.canvas.setFocus()
-
         if resultado is not None and not self._partida_terminada:
             self._fin_ronda(resultado, solo_mostrar=True)
 
@@ -951,14 +943,10 @@ class PantallaJuego(QWidget):
         elif codigo == "PU":    self.estado.usar_powerup(1)
 
     def _en_nombre_recibido(self, nombre: str):
-        """Anfitrión: actualiza el nombre de J2 y envía el estado completo."""
-        self.estado.nombres[1] = nombre
+        """Anfitrión: actualiza el nombre de J2 con el que envió el cliente."""
+        self.estado.nombres[1]          = nombre
         self.estado.serpientes[1].nombre = nombre
         self._actualizar_hud()
-        # Forzar el envío del estado completo al cliente inmediatamente después
-        # de recibir su nombre. Esto sincroniza todo.
-        if self._red:
-            self._red.enviar_estado(self.estado.serializar())
 
     def _en_desconexion(self):
         if self._partida_terminada:
@@ -1094,57 +1082,35 @@ class PantallaJuego(QWidget):
         if not self.estado:
             return
         j0, j1 = self.estado.serpientes
-        tecla = e.key()
+        tecla  = e.key()
 
         # SI ES EL CLIENTE: envía teclas al servidor, no ejecuta localmente
         if self.modo_red == "cliente":
-            if tecla == Qt.Key_Up:
-                self._red.enviar_tecla("UP")
-            elif tecla == Qt.Key_Down:
-                self._red.enviar_tecla("DOWN")
-            elif tecla == Qt.Key_Left:
-                self._red.enviar_tecla("LEFT")
-            elif tecla == Qt.Key_Right:
-                self._red.enviar_tecla("RIGHT")
+            if   tecla == Qt.Key_Up:    self._red.enviar_tecla("UP")
+            elif tecla == Qt.Key_Down:  self._red.enviar_tecla("DOWN")
+            elif tecla == Qt.Key_Left:  self._red.enviar_tecla("LEFT")
+            elif tecla == Qt.Key_Right: self._red.enviar_tecla("RIGHT")
             elif tecla in (Qt.Key_Slash, Qt.Key_Minus, Qt.Key_Period,
                            Qt.Key_0, Qt.Key_Insert, Qt.Key_End,
                            Qt.Key_PageDown, Qt.Key_Delete):
                 self._red.enviar_tecla("PU")
-            # ESC: volver al menú
-            if tecla == Qt.Key_Escape:
-                self._partida_terminada = True
-                self.timer_juego.stop()
-                self.timer_segundo.stop()
-                if self._red:
-                    self._red.cerrar()
-                musica.iniciar()
-                from pantalla.inicio import PantallaInicio
-                self.ventana.setCentralWidget(PantallaInicio(self.ventana))
-            return  # <-- Cliente no procesa nada más localmente
+            return
 
         # SI ES ANFITRIÓN O LOCAL: Controles de J1 (WASD+Q)
-        if tecla == Qt.Key_W:
-            j0.cambiar_direccion(0, -1)
-        elif tecla == Qt.Key_S:
-            j0.cambiar_direccion(0, 1)
-        elif tecla == Qt.Key_A:
-            j0.cambiar_direccion(-1, 0)
-        elif tecla == Qt.Key_D:
-            j0.cambiar_direccion(1, 0)
+        if   tecla == Qt.Key_W: j0.cambiar_direccion(0, -1)
+        elif tecla == Qt.Key_S: j0.cambiar_direccion(0, 1)
+        elif tecla == Qt.Key_A: j0.cambiar_direccion(-1, 0)
+        elif tecla == Qt.Key_D: j0.cambiar_direccion(1, 0)
         elif tecla == Qt.Key_Q:
             if not self.estado.usar_powerup(0):
                 self.panel_j1.parpadear_sin_powerup()
 
         # SI ES LOCAL: Controles de J2 (Flechas+/)
         if self.modo_red == "local":
-            if tecla == Qt.Key_Up:
-                j1.cambiar_direccion(0, -1)
-            elif tecla == Qt.Key_Down:
-                j1.cambiar_direccion(0, 1)
-            elif tecla == Qt.Key_Left:
-                j1.cambiar_direccion(-1, 0)
-            elif tecla == Qt.Key_Right:
-                j1.cambiar_direccion(1, 0)
+            if   tecla == Qt.Key_Up:    j1.cambiar_direccion(0, -1)
+            elif tecla == Qt.Key_Down:  j1.cambiar_direccion(0, 1)
+            elif tecla == Qt.Key_Left:  j1.cambiar_direccion(-1, 0)
+            elif tecla == Qt.Key_Right: j1.cambiar_direccion(1, 0)
             elif tecla in (Qt.Key_Slash, Qt.Key_Minus, Qt.Key_Period,
                            Qt.Key_0, Qt.Key_Insert, Qt.Key_End,
                            Qt.Key_PageDown, Qt.Key_Delete):
