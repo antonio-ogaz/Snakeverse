@@ -12,7 +12,6 @@ import socket
 import threading
 import json
 import struct
-import select
 
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
@@ -208,26 +207,18 @@ class LobbyRed:
     def _loop_mensajes(self):
         """Loop que escucha mensajes del rival mientras estamos en el lobby."""
         while self._activo:
-            # select espera hasta 0.5 segundos para ver si hay mensajes nuevos.
-            # Si no hay, permite que el ciclo avance para verificar si _activo sigue siendo True.
-            listos, _, _ = select.select([self._sock], [], [], 0.5)
-
-            if not listos:
-                continue
-
             msg = _recibir(self._sock)
             if msg is None:
                 self._activo = False
                 self.señales.error.emit("Rival desconectado")
                 break
-
             tipo = msg.get("tipo")
             if tipo == "color":
                 self.señales.color_rival.emit(msg["color"])
             elif tipo == "listo":
                 self.señales.rival_listo.emit(msg["valor"])
             elif tipo == "iniciar":
-                self._activo = False  # Esto apagará el loop limpiamente
+                self._activo = False
                 self.señales.iniciar_partida.emit(msg["config"])
 
     # ── Envíos ────────────────────────────────────────────────
