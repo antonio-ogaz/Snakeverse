@@ -1105,7 +1105,7 @@ class PantallaJuego(QWidget):
                                Qt.Key_0, Qt.Key_Insert, Qt.Key_End,
                                Qt.Key_PageDown, Qt.Key_Delete):
                     self._red.enviar_tecla("PU")
-                return
+                    return
 
         # SI ES ANFITRIÓN O LOCAL: Controles de J1 (WASD+Q)
         if   tecla == Qt.Key_W: j0.cambiar_direccion(0, -1)
