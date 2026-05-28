@@ -902,10 +902,15 @@ class PantallaJuego(QWidget):
         self._red.señales.nombre_recibido.connect(self._en_nombre_recibido)
         self._red.señales.desconectado.connect(self._en_desconexion)
 
+        # Activar la conexión antes de arrancar los hilos
+        self._red._activo = True
+
         # Arrancar los hilos de lectura directamente
         if self.modo_red == "anfitrion":
             threading.Thread(target=self._red._hilo_recibir_teclas, daemon=True).start()
         else:
+            # El cliente envía su nombre al anfitrión antes de empezar a escuchar
+            _enviar_mensaje(sock, {"tipo": "nombre", "nombre": self.nombre_j2})
             threading.Thread(target=self._red._hilo_recibir_estado, daemon=True).start()
 
         self._conectado = True
@@ -957,6 +962,9 @@ class PantallaJuego(QWidget):
         if self.modo_red != "cliente":
             self.timer_juego.start(VELOCIDAD)
             self.timer_segundo.start(1000)
+            # Enviar estado inicial al cliente inmediatamente
+            if self.modo_red == "anfitrion" and self._red:
+                self._red.enviar_estado(self.estado.serializar())
         self.canvas.setFocus()
 
     def _tick_juego(self):
