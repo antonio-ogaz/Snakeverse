@@ -1092,46 +1092,57 @@ class PantallaJuego(QWidget):
         if not self.estado:
             return
         j0, j1 = self.estado.serpientes
-        tecla  = e.key()
+        tecla = e.key()
 
         # SI ES EL CLIENTE: envía teclas al servidor, no ejecuta localmente
-        def keyPressEvent(self, e):
-            if not self.estado:
-                return
-            j0, j1 = self.estado.serpientes
-            tecla = e.key()
-
-            # SI ES EL CLIENTE: envía teclas al servidor
-            if self.modo_red == "cliente":
-                if tecla == Qt.Key_Up:
-                    self._red.enviar_tecla("UP")
-                elif tecla == Qt.Key_Down:
-                    self._red.enviar_tecla("DOWN")
-                elif tecla == Qt.Key_Left:
-                    self._red.enviar_tecla("LEFT")
-                elif tecla == Qt.Key_Right:
-                    self._red.enviar_tecla("RIGHT")
-                elif tecla in (Qt.Key_Slash, Qt.Key_Minus, Qt.Key_Period,
-                               Qt.Key_0, Qt.Key_Insert, Qt.Key_End,
-                               Qt.Key_PageDown, Qt.Key_Delete):
-                    self._red.enviar_tecla("PU")
-                    return
+        if self.modo_red == "cliente":
+            if tecla == Qt.Key_Up:
+                self._red.enviar_tecla("UP")
+            elif tecla == Qt.Key_Down:
+                self._red.enviar_tecla("DOWN")
+            elif tecla == Qt.Key_Left:
+                self._red.enviar_tecla("LEFT")
+            elif tecla == Qt.Key_Right:
+                self._red.enviar_tecla("RIGHT")
+            elif tecla in (Qt.Key_Slash, Qt.Key_Minus, Qt.Key_Period,
+                           Qt.Key_0, Qt.Key_Insert, Qt.Key_End,
+                           Qt.Key_PageDown, Qt.Key_Delete):
+                self._red.enviar_tecla("PU")
+            # ESC: volver al menú
+            if tecla == Qt.Key_Escape:
+                self._partida_terminada = True
+                self.timer_juego.stop()
+                self.timer_segundo.stop()
+                if self._red:
+                    self._red.cerrar()
+                musica.iniciar()
+                from pantalla.inicio import PantallaInicio
+                self.ventana.setCentralWidget(PantallaInicio(self.ventana))
+            return  # <-- Cliente no procesa nada más localmente
 
         # SI ES ANFITRIÓN O LOCAL: Controles de J1 (WASD+Q)
-        if   tecla == Qt.Key_W: j0.cambiar_direccion(0, -1)
-        elif tecla == Qt.Key_S: j0.cambiar_direccion(0, 1)
-        elif tecla == Qt.Key_A: j0.cambiar_direccion(-1, 0)
-        elif tecla == Qt.Key_D: j0.cambiar_direccion(1, 0)
+        if tecla == Qt.Key_W:
+            j0.cambiar_direccion(0, -1)
+        elif tecla == Qt.Key_S:
+            j0.cambiar_direccion(0, 1)
+        elif tecla == Qt.Key_A:
+            j0.cambiar_direccion(-1, 0)
+        elif tecla == Qt.Key_D:
+            j0.cambiar_direccion(1, 0)
         elif tecla == Qt.Key_Q:
             if not self.estado.usar_powerup(0):
                 self.panel_j1.parpadear_sin_powerup()
 
         # SI ES LOCAL: Controles de J2 (Flechas+/)
         if self.modo_red == "local":
-            if   tecla == Qt.Key_Up:    j1.cambiar_direccion(0, -1)
-            elif tecla == Qt.Key_Down:  j1.cambiar_direccion(0, 1)
-            elif tecla == Qt.Key_Left:  j1.cambiar_direccion(-1, 0)
-            elif tecla == Qt.Key_Right: j1.cambiar_direccion(1, 0)
+            if tecla == Qt.Key_Up:
+                j1.cambiar_direccion(0, -1)
+            elif tecla == Qt.Key_Down:
+                j1.cambiar_direccion(0, 1)
+            elif tecla == Qt.Key_Left:
+                j1.cambiar_direccion(-1, 0)
+            elif tecla == Qt.Key_Right:
+                j1.cambiar_direccion(1, 0)
             elif tecla in (Qt.Key_Slash, Qt.Key_Minus, Qt.Key_Period,
                            Qt.Key_0, Qt.Key_Insert, Qt.Key_End,
                            Qt.Key_PageDown, Qt.Key_Delete):
