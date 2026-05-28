@@ -497,6 +497,10 @@ class ConexionRed:
                 self.señales.tecla_recibida.emit(msg["codigo"])
             elif tipo == "nombre":
                 self.señales.nombre_recibido.emit(msg["nombre"])
+                # Enviar estado inicial como handshake de vuelta al cliente.
+                # Esto requiere una referencia al estado del juego, lo cual es un acoplamiento fuerte.
+                # Una señal podría resolverlo, pero la solución más simple es que
+                # PantallaJuego fuerce un envío después de procesar 'nombre_recibido'.
 
     def _hilo_recibir_estado(self):
         """Loop en el cliente: lee estados enviados por el anfitrión."""
@@ -895,27 +899,29 @@ class PantallaJuego(QWidget):
         self._timer_espera_red.start(200)
 
     def _iniciar_red_con_socket(self, sock):
-        """Reutiliza el socket ya conectado del lobby — no necesita reconectar."""
+        """Reutiliza el socket ya conectado del lobby."""
         self._red = ConexionRed(self.modo_red, nombre_cliente=self.nombre_j2, sock_existente=sock)
         self._red.señales.estado_recibido.connect(self._en_estado_recibido)
         self._red.señales.tecla_recibida.connect(self._en_tecla_recibida)
         self._red.señales.nombre_recibido.connect(self._en_nombre_recibido)
         self._red.señales.desconectado.connect(self._en_desconexion)
 
-        # Activar la conexión antes de arrancar los hilos
+        # Activar la conexión
         self._red._activo = True
 
-        # Arrancar los hilos de lectura directamente
-        if self.modo_red == "anfitrion":
-            threading.Thread(target=self._red._hilo_recibir_teclas, daemon=True).start()
-        else:
-            # El cliente envía su nombre al anfitrión antes de empezar a escuchar
+        if self.modo_red == "cliente":
+            # El cliente envía su nombre al anfitrión
             _enviar_mensaje(sock, {"tipo": "nombre", "nombre": self.nombre_j2})
+            # Escucha el estado del anfitrión
             threading.Thread(target=self._red._hilo_recibir_estado, daemon=True).start()
-
-        self._conectado = True
-        self._mostrar_overlay(f"RONDA {self.estado.numero_ronda}", "¡Prepárense!", DORADO)
-        QTimer.singleShot(1800, self._iniciar_ronda)
+            # NO mostrar overlay ni iniciar ronda aquí. El anfitrión dicta el ritmo.
+            # El primer mensaje de estado del anfitrión activará el overlay.
+        elif self.modo_red == "anfitrion":
+            threading.Thread(target=self._red._hilo_recibir_teclas, daemon=True).start()
+            # El anfitrión puede iniciar su secuencia de overlay y juego como antes.
+            self._conectado = True
+            self._mostrar_overlay(f"RONDA {self.estado.numero_ronda}", "¡Prepárense!", DORADO)
+            QTimer.singleShot(1800, self._iniciar_ronda)
 
     def _verificar_conexion(self):
         if self._red and self._red._activo:
@@ -943,10 +949,14 @@ class PantallaJuego(QWidget):
         elif codigo == "PU":    self.estado.usar_powerup(1)
 
     def _en_nombre_recibido(self, nombre: str):
-        """Anfitrión: actualiza el nombre de J2 con el que envió el cliente."""
-        self.estado.nombres[1]          = nombre
+        """Anfitrión: actualiza el nombre de J2 y envía el estado completo."""
+        self.estado.nombres[1] = nombre
         self.estado.serpientes[1].nombre = nombre
         self._actualizar_hud()
+        # Forzar el envío del estado completo al cliente inmediatamente después
+        # de recibir su nombre. Esto sincroniza todo.
+        if self._red:
+            self._red.enviar_estado(self.estado.serializar())
 
     def _en_desconexion(self):
         if self._partida_terminada:
