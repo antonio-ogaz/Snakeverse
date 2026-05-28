@@ -1085,16 +1085,27 @@ class PantallaJuego(QWidget):
         tecla  = e.key()
 
         # SI ES EL CLIENTE: envía teclas al servidor, no ejecuta localmente
-        if self.modo_red == "cliente":
-            if   tecla == Qt.Key_Up:    self._red.enviar_tecla("UP")
-            elif tecla == Qt.Key_Down:  self._red.enviar_tecla("DOWN")
-            elif tecla == Qt.Key_Left:  self._red.enviar_tecla("LEFT")
-            elif tecla == Qt.Key_Right: self._red.enviar_tecla("RIGHT")
-            elif tecla in (Qt.Key_Slash, Qt.Key_Minus, Qt.Key_Period,
-                           Qt.Key_0, Qt.Key_Insert, Qt.Key_End,
-                           Qt.Key_PageDown, Qt.Key_Delete):
-                self._red.enviar_tecla("PU")
-            return
+        def keyPressEvent(self, e):
+            if not self.estado:
+                return
+            j0, j1 = self.estado.serpientes
+            tecla = e.key()
+
+            # SI ES EL CLIENTE: envía teclas al servidor
+            if self.modo_red == "cliente":
+                if tecla == Qt.Key_Up:
+                    self._red.enviar_tecla("UP")
+                elif tecla == Qt.Key_Down:
+                    self._red.enviar_tecla("DOWN")
+                elif tecla == Qt.Key_Left:
+                    self._red.enviar_tecla("LEFT")
+                elif tecla == Qt.Key_Right:
+                    self._red.enviar_tecla("RIGHT")
+                elif tecla in (Qt.Key_Slash, Qt.Key_Minus, Qt.Key_Period,
+                               Qt.Key_0, Qt.Key_Insert, Qt.Key_End,
+                               Qt.Key_PageDown, Qt.Key_Delete):
+                    self._red.enviar_tecla("PU")
+                return
 
         # SI ES ANFITRIÓN O LOCAL: Controles de J1 (WASD+Q)
         if   tecla == Qt.Key_W: j0.cambiar_direccion(0, -1)
