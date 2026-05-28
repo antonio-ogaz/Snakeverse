@@ -910,12 +910,10 @@ class PantallaJuego(QWidget):
         self._red._activo = True
 
         if self.modo_red == "cliente":
-            # El cliente envía su nombre al anfitrión
             _enviar_mensaje(sock, {"tipo": "nombre", "nombre": self.nombre_j2})
-            # Escucha el estado del anfitrión
             threading.Thread(target=self._red._hilo_recibir_estado, daemon=True).start()
-            # NO mostrar overlay ni iniciar ronda aquí. El anfitrión dicta el ritmo.
-            # El primer mensaje de estado del anfitrión activará el overlay.
+            # Dar foco al canvas inmediatamente
+            self.canvas.setFocus()
         elif self.modo_red == "anfitrion":
             threading.Thread(target=self._red._hilo_recibir_teclas, daemon=True).start()
             # El anfitrión puede iniciar su secuencia de overlay y juego como antes.
@@ -936,6 +934,10 @@ class PantallaJuego(QWidget):
         self.estado.cargar_desde_red(datos)
         self.canvas.update()
         self._actualizar_hud()
+
+        # Asegurar que el canvas tenga el foco para recibir teclas
+        self.canvas.setFocus()
+
         if resultado is not None and not self._partida_terminada:
             self._fin_ronda(resultado, solo_mostrar=True)
 
