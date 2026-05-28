@@ -2,27 +2,36 @@
 pantalla/inicio.py — Pantalla de inicio / menú principal  # Descripción del archivo
 """  # Fin del comentario inicial
 
-import os  # Importa funciones del sistema operativo
-from PySide6.QtWidgets import (  # Importa widgets de PySide6
-    QWidget, QHBoxLayout, QVBoxLayout,  # Widgets y layouts principales
-    QPushButton, QLabel, QSizePolicy, QFrame,  # Botones, etiquetas y frames
+"""
+pantalla/inicio.py — Pantalla de inicio / menú principal
+"""
+import os
+import sys
+from PySide6.QtWidgets import (
+    QWidget, QHBoxLayout, QVBoxLayout,
+    QPushButton, QLabel, QSizePolicy, QFrame,
 )
-from PySide6.QtGui import QPixmap, QFont  # Importa imágenes y fuentes
-from PySide6.QtCore import Qt  # Importa constantes de Qt
+from PySide6.QtGui import QPixmap, QFont
+from PySide6.QtCore import Qt
 
-from utilidad.estilos import (  # Importa colores y estilos personalizados
-    DORADO, GRIS, VERDE,  # Colores principales
-    FONDO_OSCURO,  # Color de fondo
-    estilo_boton_verde, estilo_boton_rojo,  # Estilos de botones
-    estilo_boton_dorado, estilo_boton_azul, estilo_boton_morado,  # Más estilos
+from utilidad.estilos import (
+    DORADO, GRIS, VERDE,
+    FONDO_OSCURO,
+    estilo_boton_verde, estilo_boton_rojo,
+    estilo_boton_dorado, estilo_boton_azul, estilo_boton_morado,
 )
-from utilidad.musica import musica  # Importa controlador de música
+from utilidad.musica import musica
 
 
-def ruta_recurso(nombre: str) -> str:  # Función para obtener la ruta de recursos
-    raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  # Obtiene carpeta raíz
-    return os.path.join(raiz, "recursos", nombre)  # Devuelve ruta completa
-
+def ruta_recurso(nombre: str) -> str:
+    """Obtiene la ruta de un recurso, funciona en desarrollo y empaquetado"""
+    try:
+        # Cuando está empaquetado con PyInstaller
+        base_path = sys._MEIPASS
+    except AttributeError:
+        # Cuando se ejecuta desde el código fuente
+        base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base_path, "recursos", nombre)
 
 class PantallaInicio(QWidget):  # Clase principal de pantalla de inicio
     def __init__(self, ventana_principal=None):  # Constructor de la clase

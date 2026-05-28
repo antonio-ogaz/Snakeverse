@@ -207,19 +207,24 @@ class LobbyRed:
     def _loop_mensajes(self):
         """Loop que escucha mensajes del rival mientras estamos en el lobby."""
         while self._activo:
-            msg = _recibir(self._sock)
-            if msg is None:
-                self._activo = False
-                self.señales.error.emit("Rival desconectado")
+            try:
+                msg = _recibir(self._sock)
+                if msg is None:
+                    self._activo = False
+                    self.señales.error.emit("Rival desconectado")
+                    break
+                tipo = msg.get("tipo")
+                if tipo == "color":
+                    self.señales.color_rival.emit(msg["color"])
+                elif tipo == "listo":
+                    self.señales.rival_listo.emit(msg["valor"])
+                elif tipo == "iniciar":
+                    self._activo = False
+                    self.señales.iniciar_partida.emit(msg["config"])
+            except Exception as e:
+                if self._activo:  # Solo emitir error si no fue un cierre intencional
+                    self.señales.error.emit(str(e))
                 break
-            tipo = msg.get("tipo")
-            if tipo == "color":
-                self.señales.color_rival.emit(msg["color"])
-            elif tipo == "listo":
-                self.señales.rival_listo.emit(msg["valor"])
-            elif tipo == "iniciar":
-                self._activo = False
-                self.señales.iniciar_partida.emit(msg["config"])
 
     # ── Envíos ────────────────────────────────────────────────
 
@@ -830,11 +835,11 @@ class PantallaConfiguracion(QWidget):
         self._lanzar_juego(config)
 
     def _lanzar_juego(self, config: dict):
-        """Navega a PantallaJuego con nueva conexión."""
+        """Navega a PantallaJuego con conexión limpia."""
         from pantalla.juego import PantallaJuego
         musica.pausar()
 
-        # Obtener la IP para pasar al juego
+        # Guardar IP antes de cerrar
         ip_red = self._red.ip if self._red else ""
 
         # CERRAR COMPLETAMENTE la conexión del lobby
@@ -842,6 +847,7 @@ class PantallaConfiguracion(QWidget):
             self._red.cancelar()
             self._red = None
 
+        # Iniciar el juego SIN socket compartido
         self.ventana.setCentralWidget(
             PantallaJuego(
                 self.ventana,
@@ -851,7 +857,6 @@ class PantallaConfiguracion(QWidget):
                 color_j2=config["color_j2"],
                 ip_red=ip_red,
                 modo_red=config.get("modo_red", "local"),
-                sock_existente=None,  # NO pasamos el socket
             )
         )
 

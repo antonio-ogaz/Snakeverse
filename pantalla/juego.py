@@ -417,30 +417,16 @@ class SeñalesRed(QObject):
 
 class ConexionRed:
     def __init__(self, modo, ip_anfitrion="", nombre_cliente="Jugador 2"):
-        self.modo = modo
-        self.ip_anfitrion = ip_anfitrion
+        self.modo           = modo
+        self.ip_anfitrion   = ip_anfitrion
         self.nombre_cliente = nombre_cliente
-        self._sock = None
-        self._activo = False
-        self.señales = SeñalesRed()
+        self._sock          = None
+        self._activo        = False
+        self.señales        = SeñalesRed()
 
     def conectar(self):
-        # Siempre crear nueva conexión
+        # Siempre crear nueva conexión TCP
         threading.Thread(target=self._hilo_conectar, daemon=True).start()
-
-    def conectar(self):
-        # Si ya heredamos un socket, saltamos el hilo de conexión y arrancamos los loops
-        if self._sock is not None:
-            self._activo = True
-            if self.modo == "anfitrion":
-                threading.Thread(target=self._hilo_recibir_teclas, daemon=True).start()
-            else:
-                # El cliente envía su nombre de nuevo (opcional, por si el juego lo revalida) y escucha
-                _enviar_mensaje(self._sock, {"tipo": "nombre", "nombre": self.nombre_cliente})
-                threading.Thread(target=self._hilo_recibir_estado, daemon=True).start()
-        else:
-            # Comportamiento original si por algún motivo no hay socket previo
-            threading.Thread(target=self._hilo_conectar, daemon=True).start()
 
     def _hilo_conectar(self):
         try:
@@ -450,25 +436,30 @@ class ConexionRed:
                 srv.bind(("", PUERTO_RED))
                 srv.listen(1)
                 srv.settimeout(120)
+                print("[JUEGO] Anfitrión esperando cliente en puerto", PUERTO_RED)
                 conn, _ = srv.accept()
                 srv.close()
-                self._sock   = conn
+                self._sock = conn
                 self._activo = True
+                print("[JUEGO] Cliente conectado al juego")
                 threading.Thread(target=self._hilo_recibir_teclas, daemon=True).start()
             else:
+                print("[JUEGO] Cliente conectando a", self.ip_anfitrion)
                 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
                 s.settimeout(15)
                 s.connect((self.ip_anfitrion, PUERTO_RED))
                 s.settimeout(None)
-                self._sock   = s
+                self._sock = s
                 self._activo = True
-                # Enviar nombre propio al anfitrión nada más conectarse
+                print("[JUEGO] Cliente conectado exitosamente")
+                # Enviar nombre propio al anfitrión
                 _enviar_mensaje(self._sock, {
-                    "tipo":   "nombre",
+                    "tipo": "nombre",
                     "nombre": self.nombre_cliente,
                 })
                 threading.Thread(target=self._hilo_recibir_estado, daemon=True).start()
-        except Exception:
+        except Exception as e:
+            print("[JUEGO] Error de conexión:", str(e))
             self.señales.desconectado.emit()
 
     def enviar_estado(self, datos):
@@ -509,7 +500,9 @@ class ConexionRed:
                 self._activo = False
                 self.señales.desconectado.emit()
                 break
-            if msg.get("tipo") == "estado":
+            # ACEPTAR todos los tipos de mensaje, no solo "estado"
+            tipo = msg.get("tipo")
+            if tipo in ("estado", "overlay", "fin_partida"):
                 self.señales.estado_recibido.emit(msg)
 
     def cerrar(self):
@@ -791,11 +784,11 @@ class PantallaJuego(QWidget):
                  color_j1=None, color_j2=None,
                  sock_existente=None):
         super().__init__(ventana_principal)
-        self.ventana = ventana_principal
+        self.ventana   = ventana_principal
         self.nombre_j1 = nombre_j1
         self.nombre_j2 = nombre_j2
-        self.ip_red = ip_red
-        self.modo_red = modo_red
+        self.ip_red    = ip_red
+        self.modo_red  = modo_red
 
         c_j1 = color_j1 if color_j1 else COLORES_J1[0]
         c_j2 = color_j2 if color_j2 else COLORES_J2[0]
@@ -803,11 +796,11 @@ class PantallaJuego(QWidget):
         self.estado = EstadoJuego(colores_j1=c_j1, colores_j2=c_j2,
                                   nombres=[nombre_j1, nombre_j2])
 
-        self._red = None
-        self._conectado = (modo_red == "local")
+        self._red               = None
+        self._conectado         = (modo_red == "local")
         self._partida_terminada = False
 
-        self.timer_juego = QTimer(self)
+        self.timer_juego   = QTimer(self)
         self.timer_segundo = QTimer(self)
         self.timer_juego.timeout.connect(self._tick_juego)
         self.timer_segundo.timeout.connect(self._tick_segundo)
@@ -817,7 +810,7 @@ class PantallaJuego(QWidget):
         self._construir_interfaz()
 
         if modo_red in ("anfitrion", "cliente"):
-            # SIEMPRE crear nueva conexión, ignorar sock_existente
+            # SIEMPRE crear nueva conexión
             self._iniciar_red()
         else:
             self._mostrar_overlay(f"RONDA {self.estado.numero_ronda}", "¡Prepárense!", DORADO)
@@ -894,29 +887,6 @@ class PantallaJuego(QWidget):
         self._timer_espera_red.timeout.connect(self._verificar_conexion)
         self._timer_espera_red.start(200)
 
-    def _iniciar_red_con_socket(self, sock):
-        """Reutiliza el socket ya conectado del lobby — no necesita reconectar."""
-        self._red = ConexionRed(self.modo_red, nombre_cliente=self.nombre_j2, sock_existente=sock)
-        self._red.señales.estado_recibido.connect(self._en_estado_recibido)
-        self._red.señales.tecla_recibida.connect(self._en_tecla_recibida)
-        self._red.señales.nombre_recibido.connect(self._en_nombre_recibido)
-        self._red.señales.desconectado.connect(self._en_desconexion)
-
-        # Activar la conexión antes de arrancar los hilos
-        self._red._activo = True
-
-        # Arrancar los hilos de lectura directamente
-        if self.modo_red == "anfitrion":
-            threading.Thread(target=self._red._hilo_recibir_teclas, daemon=True).start()
-        else:
-            # El cliente envía su nombre al anfitrión antes de empezar a escuchar
-            _enviar_mensaje(sock, {"tipo": "nombre", "nombre": self.nombre_j2})
-            threading.Thread(target=self._red._hilo_recibir_estado, daemon=True).start()
-
-        self._conectado = True
-        self._mostrar_overlay(f"RONDA {self.estado.numero_ronda}", "¡Prepárense!", DORADO)
-        QTimer.singleShot(1800, self._iniciar_ronda)
-
     def _verificar_conexion(self):
         if self._red and self._red._activo:
             self._timer_espera_red.stop()
@@ -925,13 +895,50 @@ class PantallaJuego(QWidget):
             QTimer.singleShot(1800, self._iniciar_ronda)
 
     def _en_estado_recibido(self, datos: dict):
-        """Cliente: aplica el estado recibido y maneja fin de ronda."""
-        resultado = datos.get("resultado")
-        self.estado.cargar_desde_red(datos)
-        self.canvas.update()
-        self._actualizar_hud()
-        if resultado is not None and not self._partida_terminada:
-            self._fin_ronda(resultado, solo_mostrar=True)
+        """Cliente: recibe estado del anfitrión y actualiza la UI."""
+
+        tipo = datos.get("tipo")
+
+        # Mensaje de fin de partida
+        if tipo == "fin_partida":
+            self._partida_terminada = True
+            self.timer_juego.stop()
+            self.timer_segundo.stop()
+            self._ocultar_overlay()
+
+            if self._red:
+                self._red.cerrar()
+
+            musica.iniciar()
+            from pantalla.resultado import PantallaResultado
+            self.ventana.setCentralWidget(
+                PantallaResultado(
+                    self.ventana,
+                    nombre_ganador=datos["ganador"],
+                    victorias=datos["victorias"],
+                    puntos=datos["puntos"],
+                    nombres=datos["nombres"]
+                )
+            )
+            return
+
+        # Mensaje de overlay (ganador de ronda, siguiente ronda, etc.)
+        if tipo == "overlay":
+            self._mostrar_overlay(
+                datos.get("titulo", ""),
+                datos.get("subtitulo", ""),
+                datos.get("color", DORADO)
+            )
+            # Si hay que ocultar después de un tiempo
+            if datos.get("auto_ocultar"):
+                QTimer.singleShot(datos.get("tiempo", 1800), self._ocultar_overlay)
+            return
+
+        # Estado normal del juego
+        if tipo == "estado":
+            self.estado.cargar_desde_red(datos)
+            self.canvas.update()
+            self._actualizar_hud()
 
     def _en_tecla_recibida(self, codigo: str):
         """Anfitrión: aplica la tecla del cliente al Jugador 2."""
@@ -950,7 +957,8 @@ class PantallaJuego(QWidget):
 
     def _en_desconexion(self):
         if self._partida_terminada:
-            return  # cierre normal al finalizar la partida, ignorar
+            return  # No mostrar nada si ya terminó
+
         self.timer_juego.stop()
         self.timer_segundo.stop()
         self._mostrar_overlay("❌ DESCONECTADO", "El rival se desconectó", ROJO)
@@ -962,7 +970,7 @@ class PantallaJuego(QWidget):
         if self.modo_red != "cliente":
             self.timer_juego.start(VELOCIDAD)
             self.timer_segundo.start(1000)
-            # Enviar estado inicial al cliente inmediatamente
+            # Enviar estado inicial al cliente
             if self.modo_red == "anfitrion" and self._red:
                 self._red.enviar_estado(self.estado.serializar())
         self.canvas.setFocus()
@@ -971,8 +979,10 @@ class PantallaJuego(QWidget):
         resultado = self.estado.tick()
         self.canvas.update()
         self._actualizar_hud()
+
         if self.modo_red == "anfitrion" and self._red:
             self._red.enviar_estado(self.estado.serializar(resultado))
+
         if resultado is not None:
             self.timer_juego.stop()
             self.timer_segundo.stop()
@@ -994,51 +1004,126 @@ class PantallaJuego(QWidget):
     def _fin_ronda(self, ganador, solo_mostrar=False):
         if self._partida_terminada:
             return
+
+        # Actualizar victorias
         if ganador == -1:
-            mensaje, color = "¡EMPATE!", DORADO
+            mensaje = "¡EMPATE!"
+            color = DORADO
         else:
             nombre = self.estado.serpientes[ganador].nombre
-            color  = VERDE if ganador == 0 else AZUL
+            color = VERDE if ganador == 0 else AZUL
             if not solo_mostrar:
                 self.estado.victorias[ganador] += 1
             mensaje = f"🏆 {nombre} gana la ronda"
 
         self._mostrar_overlay(mensaje, "", color)
 
+        # Enviar overlay al cliente
+        if self.modo_red == "anfitrion" and self._red and self._red._activo:
+            try:
+                self._red.enviar_estado({
+                    "tipo": "overlay",
+                    "titulo": mensaje,
+                    "subtitulo": "",
+                    "color": color,
+                    "auto_ocultar": False
+                })
+            except Exception:
+                pass
+
+        # Verificar si la partida terminó
         if max(self.estado.victorias) >= RONDAS_MAX:
-            QTimer.singleShot(2200, self._fin_partida)
+            if not self._partida_terminada:
+                QTimer.singleShot(3000, self._fin_partida)
         else:
             if not solo_mostrar:
                 self.estado.siguiente_ronda()
-            QTimer.singleShot(2200, lambda: (
-                self._mostrar_overlay(f"RONDA {self.estado.numero_ronda}", "¡Prepárense!", DORADO),
-                QTimer.singleShot(1800, self._iniciar_ronda),
-            ))
+
+            def mostrar_siguiente_ronda():
+                if self._partida_terminada:
+                    return
+                ronda_msg = f"RONDA {self.estado.numero_ronda}"
+                self._mostrar_overlay(ronda_msg, "¡Prepárense!", DORADO)
+
+                if self.modo_red == "anfitrion" and self._red and self._red._activo:
+                    try:
+                        self._red.enviar_estado({
+                            "tipo": "overlay",
+                            "titulo": ronda_msg,
+                            "subtitulo": "¡Prepárense!",
+                            "color": DORADO,
+                            "auto_ocultar": True,
+                            "tiempo": 1800
+                        })
+                    except Exception:
+                        pass
+
+                QTimer.singleShot(2000, self._iniciar_ronda)
+
+            QTimer.singleShot(2500, mostrar_siguiente_ronda)
 
     def _fin_partida(self):
         if self._partida_terminada:
             return
-        self._partida_terminada = True  # previene doble llamada y _en_desconexion
+        self._partida_terminada = True
+
+        # DETENER todos los timers inmediatamente
+        self.timer_juego.stop()
+        self.timer_segundo.stop()
+
         self._ocultar_overlay()
 
-        ganador = 0 if self.estado.victorias[0] > self.estado.victorias[1] else 1
-        nombre  = self.estado.serpientes[ganador].nombre
-        puntos  = [self.estado.serpientes[i].puntos for i in range(2)]
+        # Determinar ganador
+        if self.estado.victorias[0] > self.estado.victorias[1]:
+            ganador_idx = 0
+        elif self.estado.victorias[1] > self.estado.victorias[0]:
+            ganador_idx = 1
+        else:
+            ganador_idx = 0
 
-        if self.modo_red != "cliente":
-            self._guardar_resultado(nombre, puntos[ganador])
+        nombre_ganador = self.estado.nombres[ganador_idx]
+        puntos = [self.estado.serpientes[0].puntos, self.estado.serpientes[1].puntos]
 
-        # Cerrar el socket con retraso para que el cliente alcance a navegar
-        if self._red:
-            QTimer.singleShot(3000, self._red.cerrar)
+        # Solo el anfitrión guarda la puntuación y envía fin de partida
+        if self.modo_red == "anfitrion":
+            self._guardar_resultado(nombre_ganador, puntos[ganador_idx])
 
-        musica.iniciar()
-        from pantalla.resultado import PantallaResultado
-        self.ventana.setCentralWidget(
-            PantallaResultado(self.ventana, nombre_ganador=nombre,
-                              victorias=self.estado.victorias,
-                              puntos=puntos, nombres=self.estado.nombres)
-        )
+            # Enviar comando de fin de partida al cliente
+            if self._red and self._red._activo:
+                try:
+                    self._red.enviar_estado({
+                        "tipo": "fin_partida",
+                        "ganador": nombre_ganador,
+                        "victorias": self.estado.victorias,
+                        "puntos": puntos,
+                        "nombres": self.estado.nombres
+                    })
+                except Exception:
+                    pass
+
+            # Cerrar conexión con delay para que el mensaje llegue
+            if self._red:
+                QTimer.singleShot(1000, self._red.cerrar)
+
+        # Usar QTimer seguro para evitar crash
+        QTimer.singleShot(500, lambda: self._mostrar_resultados(nombre_ganador, puntos))
+
+    def _mostrar_resultados(self, nombre_ganador, puntos):
+        """Método separado para mostrar resultados de forma segura."""
+        try:
+            musica.iniciar()
+            from pantalla.resultado import PantallaResultado
+            self.ventana.setCentralWidget(
+                PantallaResultado(
+                    self.ventana,
+                    nombre_ganador=nombre_ganador,
+                    victorias=self.estado.victorias,
+                    puntos=puntos,
+                    nombres=self.estado.nombres
+                )
+            )
+        except Exception:
+            pass
 
     def _guardar_resultado(self, nombre_ganador, puntos_ganador):
         ruta  = "puntuaciones.json"

@@ -2,14 +2,26 @@
 utilidad/musica.py — Gestor global de música de fondo
 """
 import os
+import sys
 from PySide6.QtMultimedia import QMediaPlayer, QAudioOutput
 from PySide6.QtCore import QUrl
 
 
+def _ruta_base():
+    """Obtiene la ruta base, funciona en desarrollo y empaquetado"""
+    try:
+        # Cuando está empaquetado con PyInstaller
+        base_path = sys._MEIPASS
+    except AttributeError:
+        # Cuando se ejecuta desde el código fuente
+        base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return base_path
+
+
 def _ruta_musica() -> str:
-    #ruta de musica
-    raiz = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    return os.path.join(raiz, "recursos", "Sonido.mp3")
+    # Ruta de musica
+    return os.path.join(_ruta_base(), "recursos", "Sonido.mp3")
+
 
 class GestorMusica:
     """
@@ -22,10 +34,9 @@ class GestorMusica:
         self._salida_audio       = None
         self._iniciado           = False
         self._volumen            = 0.70
-        self._pausado_por_usuario = False  # True solo cuando el usuario desactiva la música
+        self._pausado_por_usuario = False
 
     def _configurar(self):
-        #crea el reproductor
         if self._iniciado:
             return
         self._salida_audio = QAudioOutput()
@@ -33,39 +44,32 @@ class GestorMusica:
         self._reproductor  = QMediaPlayer()
         self._reproductor.setAudioOutput(self._salida_audio)
         self._reproductor.setSource(QUrl.fromLocalFile(_ruta_musica()))
-        # Loop automático al terminar la canción
         self._reproductor.mediaStatusChanged.connect(self._reiniciar)
         self._iniciado = True
 
     def _reiniciar(self, estado):
-        # Se reinicia la cancion
         if estado == QMediaPlayer.MediaStatus.EndOfMedia:
             self._reproductor.setPosition(0)
             self._reproductor.play()
 
     def iniciar(self):
-        #inicia la reproduccion si no esta
         self._configurar()
-        # Solo arranca si el usuario NO la pausó manualmente
         if not self._pausado_por_usuario:
             estado = self._reproductor.playbackState()
             if estado != QMediaPlayer.PlaybackState.PlayingState:
                 self._reproductor.play()
 
     def pausar(self):
-        #pausa la musica
         if self._iniciado and self._reproductor:
             self._pausado_por_usuario = True
             self._reproductor.pause()
 
     def reanudar(self):
-        #reaunuda la musica
         if self._iniciado and self._reproductor:
             self._pausado_por_usuario = False
             self._reproductor.play()
 
     def alternar(self):
-        #Pausa si estaba reproduciendo, reanuda si estaba pausada.
         if not self._iniciado:
             self.iniciar()
             return
@@ -78,32 +82,21 @@ class GestorMusica:
             self._reproductor.play()
 
     def esta_activa(self) -> bool:
-        #True si la música está reproduciéndose en este momento.
         if not self._iniciado or not self._reproductor:
             return False
         return (self._reproductor.playbackState()
                 == QMediaPlayer.PlaybackState.PlayingState)
 
     def ajustar_volumen(self, valor: float):
-        # Ajusta el volumen (0.0 a 1.0)
         self._volumen = max(0.0, min(1.0, valor))
         if self._salida_audio:
             self._salida_audio.setVolume(self._volumen)
 
-    # MÉTODOS PARA COMPATIBILIDAD CON AJUSTES
-
     def cambiar_volumen(self, valor: int):
-        """
-        Cambia el volumen usando un valor entero de 0 a 100.
-        Convierte a float (0.0-1.0) para QAudioOutput.
-        """
         volumen_float = valor / 100.0
         self.ajustar_volumen(volumen_float)
 
     def obtener_volumen(self) -> int:
-        """
-        Retorna el volumen actual como entero entre 0 y 100.
-        """
         return int(self._volumen * 100)
 
 
