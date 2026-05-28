@@ -830,25 +830,28 @@ class PantallaConfiguracion(QWidget):
         self._lanzar_juego(config)
 
     def _lanzar_juego(self, config: dict):
-        """Navega a PantallaJuego pasando el socket ya establecido."""
+        """Navega a PantallaJuego con nueva conexión."""
         from pantalla.juego import PantallaJuego
         musica.pausar()
 
-        # Pasar el socket del lobby al juego para reutilizarlo
-        sock = self._red._sock
-        ip_red = self._red.ip
-        self._red._activo = False  # detener el loop del lobby sin cerrar el socket
+        # Obtener la IP para pasar al juego
+        ip_red = self._red.ip if self._red else ""
+
+        # CERRAR COMPLETAMENTE la conexión del lobby
+        if self._red:
+            self._red.cancelar()
+            self._red = None
 
         self.ventana.setCentralWidget(
             PantallaJuego(
                 self.ventana,
-                nombre_j1 = config["nombre_j1"],
-                nombre_j2 = config["nombre_j2"],
-                color_j1  = config["color_j1"],
-                color_j2  = config["color_j2"],
-                ip_red    = ip_red,
-                modo_red  = config.get("modo_red", "local"),
-                sock_existente = sock,
+                nombre_j1=config["nombre_j1"],
+                nombre_j2=config["nombre_j2"],
+                color_j1=config["color_j1"],
+                color_j2=config["color_j2"],
+                ip_red=ip_red,
+                modo_red=config.get("modo_red", "local"),
+                sock_existente=None,  # NO pasamos el socket
             )
         )
 

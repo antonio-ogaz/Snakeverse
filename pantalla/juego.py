@@ -416,14 +416,17 @@ class SeñalesRed(QObject):
 
 
 class ConexionRed:
-    # Añadimos sock_existente a los parámetros
-    def __init__(self, modo, ip_anfitrion="", nombre_cliente="Jugador 2", sock_existente=None):
-        self.modo           = modo
-        self.ip_anfitrion   = ip_anfitrion
+    def __init__(self, modo, ip_anfitrion="", nombre_cliente="Jugador 2"):
+        self.modo = modo
+        self.ip_anfitrion = ip_anfitrion
         self.nombre_cliente = nombre_cliente
-        self._sock          = sock_existente  # Asignamos el socket heredado si existe
-        self._activo        = False
-        self.señales        = SeñalesRed()
+        self._sock = None
+        self._activo = False
+        self.señales = SeñalesRed()
+
+    def conectar(self):
+        # Siempre crear nueva conexión
+        threading.Thread(target=self._hilo_conectar, daemon=True).start()
 
     def conectar(self):
         # Si ya heredamos un socket, saltamos el hilo de conexión y arrancamos los loops
@@ -788,11 +791,11 @@ class PantallaJuego(QWidget):
                  color_j1=None, color_j2=None,
                  sock_existente=None):
         super().__init__(ventana_principal)
-        self.ventana   = ventana_principal
+        self.ventana = ventana_principal
         self.nombre_j1 = nombre_j1
         self.nombre_j2 = nombre_j2
-        self.ip_red    = ip_red
-        self.modo_red  = modo_red
+        self.ip_red = ip_red
+        self.modo_red = modo_red
 
         c_j1 = color_j1 if color_j1 else COLORES_J1[0]
         c_j2 = color_j2 if color_j2 else COLORES_J2[0]
@@ -800,11 +803,11 @@ class PantallaJuego(QWidget):
         self.estado = EstadoJuego(colores_j1=c_j1, colores_j2=c_j2,
                                   nombres=[nombre_j1, nombre_j2])
 
-        self._red               = None
-        self._conectado         = (modo_red == "local")
+        self._red = None
+        self._conectado = (modo_red == "local")
         self._partida_terminada = False
 
-        self.timer_juego   = QTimer(self)
+        self.timer_juego = QTimer(self)
         self.timer_segundo = QTimer(self)
         self.timer_juego.timeout.connect(self._tick_juego)
         self.timer_segundo.timeout.connect(self._tick_segundo)
@@ -814,11 +817,8 @@ class PantallaJuego(QWidget):
         self._construir_interfaz()
 
         if modo_red in ("anfitrion", "cliente"):
-            if sock_existente:
-                # El lobby ya estableció la conexión — reutilizar el socket
-                self._iniciar_red_con_socket(sock_existente)
-            else:
-                self._iniciar_red()
+            # SIEMPRE crear nueva conexión, ignorar sock_existente
+            self._iniciar_red()
         else:
             self._mostrar_overlay(f"RONDA {self.estado.numero_ronda}", "¡Prepárense!", DORADO)
             QTimer.singleShot(1800, self._iniciar_ronda)
