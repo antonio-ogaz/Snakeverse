@@ -1,0 +1,13 @@
+SNAKEVERSE - TÉRMINOS DE USO
+
+Este software es un proyecto académico desarrollado para fines educativos.
+
+Permisos:
+- Uso libre para fines educativos y personales.
+- Distribución permitida manteniendo los créditos originales.
+
+Limitaciones:
+- No se permite el uso comercial sin autorización.
+- El software se proporciona "tal cual", sin garantías.
+
+Desarrollado como proyecto escolar.

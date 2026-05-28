@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="ALL" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="d43fb4e1-ee44-4e49-b385-b3dbb9ac543b" name="Changes" comment="Version Ultimus">
+      <change beforePath="$PROJECT_DIR$/.idea/.gitignore" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/CODIGO.iml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/modules.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/vcs.xml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/1er Avance/Avance.docx" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/1er Avance/Video_1er_avance.mp4" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/main.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pantalla/ajustes.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pantalla/configuracion.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pantalla/inicio.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pantalla/juego.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pantalla/puntuaciones.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/pantalla/resultado.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/recursos/Sonido.mp3" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/recursos/Sonido1.mp3" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/recursos/Sonido2.mp3" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/recursos/Sonido3.mp3" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/recursos/logo.png" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/utilidad/estilos.py" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/utilidad/musica.py" beforeDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="EmbeddingIndexingInfo">
+    <option name="cachedIndexableFilesCount" value="22" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="GitHubPullRequestSearchHistory"><![CDATA[{
+  "lastFilter": {
+    "state": "OPEN",
+    "assignee": "antonio-ogaz"
+  }
+}]]></component>
+  <component name="GithubPullRequestsUISettings"><![CDATA[{
+  "selectedUrlAndAccountId": {
+    "url": "https://github.com/antonio-ogaz/Snakeverse.git",
+    "accountId": "60992d66-4e2e-41f1-a6bd-3e8a4faab1c2"
+  }
+}]]></component>
+  <component name="McpProjectServerCommands">
+    <commands />
+    <urls />
+  </component>
+  <component name="NextEditCompletionFeaturesState">
+    <decayedCancelled>
+      <entry key="MS100" value="1.013138956637452" />
+      <entry key="MS500" value="1.782132280844444" />
+      <entry key="S2" value="3.0984615002469287" />
+      <entry key="S5" value="3.5956760268652914" />
+      <entry key="S10" value="3.789680797539239" />
+      <entry key="S30" value="3.9279912679637308" />
+      <entry key="S60" value="3.9649020532686223" />
+      <entry key="M2" value="4.071541000572045" />
+      <entry key="M5" value="5.218117037857654" />
+      <entry key="M10" value="6.937523786361164" />
+      <entry key="M15" value="7.967294356657417" />
+      <entry key="M30" value="9.466707099256713" />
+      <entry key="H1" value="10.535328661455166" />
+      <entry key="H2" value="11.20379542437659" />
+      <entry key="H4" value="11.583553605806207" />
+      <entry key="D1" value="11.927807429069865" />
+      <entry key="W1" value="11.989615211530849" />
+    </decayedCancelled>
+    <decayedSelected>
+      <entry key="MS100" value="0.0" />
+      <entry key="MS500" value="0.0" />
+      <entry key="S2" value="0.0" />
+      <entry key="S5" value="0.0" />
+      <entry key="S10" value="0.0" />
+      <entry key="S30" value="0.0" />
+      <entry key="S60" value="0.0" />
+      <entry key="M2" value="0.0" />
+      <entry key="M5" value="0.0" />
+      <entry key="M10" value="0.0" />
+      <entry key="M15" value="0.0" />
+      <entry key="M30" value="0.0" />
+      <entry key="H1" value="0.0" />
+      <entry key="H2" value="0.0" />
+      <entry key="H4" value="0.0" />
+      <entry key="D1" value="0.0" />
+      <entry key="W1" value="0.0" />
+    </decayedSelected>
+    <decayedShown>
+      <entry key="MS100" value="0.9652787537251388" />
+      <entry key="MS500" value="1.7632256437022695" />
+      <entry key="S2" value="3.0891957996558954" />
+      <entry key="S5" value="3.591263693141813" />
+      <entry key="S10" value="3.7873360819904014" />
+      <entry key="S30" value="3.927176693311673" />
+      <entry key="S60" value="3.9644838422495097" />
+      <entry key="M2" value="4.0710743996755685" />
+      <entry key="M5" value="5.216614317663882" />
+      <entry key="M10" value="6.935774892272773" />
+      <entry key="M15" value="7.9657235900518355" />
+      <entry key="M30" value="9.465616209409125" />
+      <entry key="H1" value="10.534668792698385" />
+      <entry key="H2" value="11.203428432789119" />
+      <entry key="H4" value="11.583359376133084" />
+      <entry key="D1" value="11.927773415288502" />
+      <entry key="W1" value="11.989610310016971" />
+    </decayedShown>
+  </component>
+  <component name="ProjectColorInfo"><![CDATA[{
+  "associatedIndex": 8,
+  "fromUser": false
+}]]></component>
+  <component name="ProjectId" id="3EKsPoQyNj2dwhPeEHKLOmfhk1M" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "Python.main.executor": "Run",
+    "RunOnceActivity.MCP Project settings loaded": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.typescript.service.memoryLimit.init": "true",
+    "codeWithMe.voiceChat.enabledByDefault": "false",
+    "com.intellij.ml.llm.matterhorn.ej.ui.settings.DefaultModelSelectionForGA.v1": "true",
+    "git-widget-placeholder": "master",
+    "junie.onboarding.icon.badge.shown": "true",
+    "last_opened_file_path": "C:/Users/Orxata/PycharmProjects/Snakeverse",
+    "node.js.detected.package.eslint": "true",
+    "node.js.detected.package.tslint": "true",
+    "node.js.selected.package.eslint": "(autodetect)",
+    "node.js.selected.package.tslint": "(autodetect)",
+    "nodejs_package_manager_path": "npm",
+    "to.speed.mode.migration.done": "true",
+    "vue.rearranger.settings.migration": "true"
+  }
+}]]></component>
+  <component name="RecentsManager">
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="C:\Users\Orxata\PycharmProjects\Snakeverse" />
+    </key>
+  </component>
+  <component name="SharedIndexes">
+    <attachedChunks>
+      <set>
+        <option value="bundled-python-sdk-c59985aa861c-c2ffad84badb-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-261.24374.152" />
+      </set>
+    </attachedChunks>
+  </component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="d43fb4e1-ee44-4e49-b385-b3dbb9ac543b" name="Changes" comment="" />
+      <created>1779938575972</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1779938575972</updated>
+      <workItem from="1779938576924" duration="5029000" />
+    </task>
+    <task id="LOCAL-00001" summary="Version Ultimus">
+      <option name="closed" value="true" />
+      <created>1779942958580</created>
+      <option name="number" value="00001" />
+      <option name="presentableId" value="LOCAL-00001" />
+      <option name="project" value="LOCAL" />
+      <updated>1779942958580</updated>
+    </task>
+    <option name="localTasksCounter" value="2" />
+    <servers />
+  </component>
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="VcsManagerConfiguration">
+    <MESSAGE value="Version Ultimus" />
+    <option name="LAST_COMMIT_MESSAGE" value="Version Ultimus" />
+  </component>
+  <component name="com.intellij.coverage.CoverageDataManagerImpl">
+    <SUITE FILE_PATH="coverage/Snakeverse$main.coverage" NAME="main Coverage Results" MODIFIED="1779943080410" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+  </component>
+</project>
