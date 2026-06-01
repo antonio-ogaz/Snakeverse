@@ -247,12 +247,26 @@ class LobbyRed:
     def cancelar(self):
         self._activo = False
         if self._srv:
-            try: self._srv.close()
-            except Exception: pass
+            try:
+                self._srv.close()
+            except Exception:
+                pass
         if self._sock:
-            try: self._sock.close()
-            except Exception: pass
-
+            try:
+                self._sock.shutdown(socket.SHUT_WR)  # FIN limpio, sin RST
+            except Exception:
+                pass
+            # opcional: drenar lo que quede del cliente
+            try:
+                self._sock.settimeout(1.0)
+                while self._sock.recv(4096):
+                    pass
+            except Exception:
+                pass
+            try:
+                self._sock.close()
+            except Exception:
+                pass
 
 # ── Widget: selector de color ────────────────────────────────
 class SelectorColor(QFrame):

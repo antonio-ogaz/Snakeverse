@@ -28,6 +28,7 @@ from PySide6.QtGui import (
 from PySide6.QtCore import Qt, QTimer, QPointF, QRectF, Signal, QObject
 
 from utilidad.musica import musica
+from utilidad.rutas import ruta_datos
 from utilidad.estilos import (
     DORADO, DORADO_CLARO, VERDE, VERDE_OSCURO,
     AZUL, AZUL_OSCURO, ROJO, NARANJA, MORADO,
@@ -1126,7 +1127,7 @@ class PantallaJuego(QWidget):
             pass
 
     def _guardar_resultado(self, nombre_ganador, puntos_ganador):
-        ruta  = "puntuaciones.json"
+        ruta  = ruta_datos("puntuaciones.json")
         lista = []
         if os.path.exists(ruta):
             try:

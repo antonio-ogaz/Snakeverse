@@ -14,6 +14,7 @@ a = Analysis(
         'PySide6.QtMultimedia',
         'utilidad.estilos',
         'utilidad.musica',
+        'utilidad.rutas',
         'pantalla.inicio',
         'pantalla.configuracion',
         'pantalla.juego',

@@ -18,8 +18,9 @@ from utilidad.estilos import (  # Importa estilos personalizados
     DORADO, GRIS, FONDO_CLARO, BORDE_ACTIVO,  # Colores personalizados
     estilo_ventana, estilo_boton_base, estilo_boton_rojo,  # Funciones de estilos
 )  # Fin de importación
+from utilidad.rutas import ruta_datos  # Ruta escribible para datos del usuario
 
-ARCHIVO_PUNTUACIONES = "puntuaciones.json"  # Nombre del archivo JSON
+ARCHIVO_PUNTUACIONES = ruta_datos("puntuaciones.json")  # Ruta absoluta en %APPDATA%\Snakeverse
 
 
 def cargar_puntuaciones() -> list:  # Función para cargar puntuaciones
